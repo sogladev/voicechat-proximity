@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/sogladev/voice-chat-manager/internal/config"
 	"github.com/sogladev/voice-chat-manager/internal/types"
 
 	"github.com/gorilla/websocket"
@@ -202,11 +203,14 @@ func handleMMOWebSocket(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// Load configuration
+	cfg := config.Load()
+
 	// Server for MMO connection (private, loopback only)
 	mmoMux := http.NewServeMux()
 	mmoMux.HandleFunc("/", handleMMOWebSocket)
 	mmoServer := &http.Server{
-		Addr:    "127.0.0.1:22141",
+		Addr:    cfg.MMOServerAddr,
 		Handler: mmoMux,
 	}
 
@@ -215,7 +219,7 @@ func main() {
 	playerMux.HandleFunc("/ws", handlePlayerWebSocket)
 
 	// Create a file server for serving static files
-	staticFileServer := http.FileServer(http.Dir("./frontend/dist"))
+	staticFileServer := http.FileServer(http.Dir(cfg.StaticFilesDir))
 
 	// Create a ServeMux for handling both static files and WebSocket connections
 	mainMux := http.NewServeMux()
@@ -224,20 +228,20 @@ func main() {
 
 	// Create and start the HTTP server
 	playerServer := &http.Server{
-		Addr:    "0.0.0.0:22142",
+		Addr:    cfg.PlayerServerAddr,
 		Handler: mainMux,
 	}
 
 	// Start both servers concurrently
 	go func() {
-		log.Println("Starting MMO server (loopback) on 127.0.0.1:22141")
+		log.Printf("Starting MMO server (loopback) on %s", cfg.MMOServerAddr)
 		if err := mmoServer.ListenAndServe(); err != nil {
 			log.Fatalf("MMO Server error: %v", err)
 		}
 	}()
 
 	go func() {
-		log.Println("Starting Player server on 0.0.0.0:22142")
+		log.Printf("Starting Player server on %s", cfg.PlayerServerAddr)
 		if err := playerServer.ListenAndServe(); err != nil {
 			log.Fatalf("Player Server error: %v", err)
 		}
