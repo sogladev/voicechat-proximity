@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import HelloWorld from './components/HelloWorld.vue'
 import TheWelcome from './components/TheWelcome.vue'
+import Minimap from '@/components/Minimap.vue'
 
 import { ref, watch } from 'vue'
-import { useWebSocket } from '@vueuse/core'
-import type { PositionUpdate } from './types/types'
+import { assert, useWebSocket } from '@vueuse/core'
+import type { Player, PositionUpdate } from './types/types'
 const url = 'ws://localhost:22142/ws'
 const { status, data, send, open, close } = useWebSocket(url)
 
+const guid = ref('player-guid-1')
 const isConnected = ref(false)
+const players =  ref<Player[] | null>(null)
 
 watch (status, () => {
   isConnected.value = status.value === 'OPEN'
@@ -21,6 +24,8 @@ watch(data, () => {
       // message.value = JSON.stringify(parsedMessage, null, 2) // Pretty print JSON
       console.debug({parsedMessage: positionUpdate})
       console.debug(JSON.stringify(positionUpdate, null, 2)) // Pretty print JSON)
+      assert(positionUpdate.data.length === 1, 'Only 1 map should be sent')
+      players.value = positionUpdate.data[0].players; // Only 1 map
     } catch (error) {
       console.error('Failed to parse message:', error)
     }
@@ -29,7 +34,7 @@ watch(data, () => {
 
 const sendMessage = () => {
   const playerConnection = {
-    guid: 'player-guid-1',
+    guid: guid.value,
     secret: 'player-secret',
   }
   send(JSON.stringify(playerConnection))
@@ -50,6 +55,8 @@ sendMessage()
     <p v-if="isConnected">Connected to WebSocket</p>
     <p v-else>Connecting to WebSocket...</p>
     <p v-if="data">Received message</p>
+
+    <Minimap v-if="players" :players="players" :guid="guid" />
 
     </div>
   </main>
