@@ -2,7 +2,6 @@
 import { ref, onMounted, watch } from 'vue'
 import type { Player } from '@/types/types'
 import { DEFAULT_VISIBILITY_DISTANCE } from '@/model/constants'
-import { assert } from '@vueuse/core';
 
 const props = defineProps<{
   players: Player[]

@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import Minimap from '@/components/Minimap.vue'
-
-import { ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { assert, useWebSocket } from '@vueuse/core'
+import Minimap from '@/components/Minimap.vue'
 import type { Player, PositionUpdate } from './types/types'
-const url = 'ws://localhost:22142/ws'
-const { status, data, send, open, close } = useWebSocket(url)
 
+const url = 'ws://localhost:22142/ws'
 const guid = ref(8)
+
 const isConnected = ref(false)
 const players = ref<Player[] | null>(null)
+const { status, data, send, open, close } = useWebSocket(url)
 
 watch(status, () => {
   isConnected.value = status.value === 'OPEN'
@@ -39,14 +39,21 @@ const sendMessage = () => {
 }
 
 // Send the initial connection message
-sendMessage()
+onMounted(() => {
+  sendMessage()
+})
+
+onUnmounted(() => {
+  close()
+})
 </script>
 
 <template>
   <main>
     <div class="center-container">
-      <p v-if="isConnected">Connected to WebSocket</p>
-      <p v-else>Connecting to WebSocket...</p>
+      <p v-if="status == 'OPEN'">Connected to WebSocket</p>
+      <p v-else-if="status == 'CONNECTING'">Connecting to WebSocket...</p>
+      <p v-else>Closed WebSocket</p>
       <p v-if="data">Received message</p>
       <Minimap v-if="players" :players="players" :guid="guid" />
     </div>
