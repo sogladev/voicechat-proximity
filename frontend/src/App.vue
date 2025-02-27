@@ -9,7 +9,6 @@ const url = 'ws://localhost:22142/ws'
 const { status, data, send, open, close } = useWebSocket(url)
 
 const isConnected = ref(false)
-const message = ref('')
 
 watch (status, () => {
   isConnected.value = status.value === 'OPEN'
@@ -18,8 +17,10 @@ watch (status, () => {
 watch(data, () => {
   if (data.value) {
     try {
-      let parsedMessage = JSON.parse(data.value) as PositionUpdate
-      message.value = JSON.stringify(parsedMessage, null, 2) // Pretty print JSON
+      let positionUpdate = JSON.parse(data.value) as PositionUpdate
+      // message.value = JSON.stringify(parsedMessage, null, 2) // Pretty print JSON
+      console.debug({parsedMessage: positionUpdate})
+      console.debug(JSON.stringify(positionUpdate, null, 2)) // Pretty print JSON)
     } catch (error) {
       console.error('Failed to parse message:', error)
     }
@@ -48,7 +49,8 @@ sendMessage()
       <!-- <HelloWorld msg="You did it!" /> -->
     <p v-if="isConnected">Connected to WebSocket</p>
     <p v-else>Connecting to WebSocket...</p>
-    <p v-if="message">Received message: <pre>{{ message }}</pre></p>
+    <p v-if="data">Received message</p>
+
     </div>
   </main>
 </template>
