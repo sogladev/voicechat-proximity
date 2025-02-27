@@ -25,3 +25,11 @@ export interface PositionUpdate {
   message: string;
   data: MapData[];
 }
+
+// SignalingMessage is used to send signaling messages between players
+export interface SignalingMessage {
+  type: string; // e.g., "new-player", "offer", "answer", "candidate", "join"
+  from: number;
+  to: string;
+  data: string;
+}

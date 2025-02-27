@@ -74,26 +74,43 @@ func broadcastPlayerUpdates() {
 			}},
 		}
 
-		data, _ := json.Marshal(update)
-		log.Printf("Sending update to player %d: %s", playerGUID, string(data))
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		if err := conn.WriteJSON(update); err != nil {
 			log.Printf("Error sending to player %d: %v", playerGUID, err)
 		}
 	}
 }
 
+func notifyOthers(newPlayer int) {
+	connectedMutex.Lock()
+	defer connectedMutex.Unlock()
+
+	for playerGUID, conn := range connectedPlayers {
+		if playerGUID == newPlayer {
+			continue
+		}
+		msg := types.SignalingMessage{
+			Type: "new-player",
+			From: newPlayer,
+		}
+		conn.WriteJSON(msg)
+		if err := conn.WriteJSON(msg); err != nil {
+			log.Printf("Error sending new-player signaling message for player %d: %v", playerGUID, err)
+		}
+	}
+}
+
 func handlePlayerWebSocket(w http.ResponseWriter, r *http.Request) {
-	ws, err := upgrader.Upgrade(w, r, nil)
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("WebSocket upgrade error:", err)
 		return
 	}
 
 	// Read initial player connection details
-	_, message, err := ws.ReadMessage()
+	_, message, err := conn.ReadMessage()
 	if err != nil {
 		log.Println("Player handshake error:", err)
-		ws.Close()
+		conn.Close()
 		return
 	}
 
@@ -110,25 +127,41 @@ func handlePlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Store player connection
 	connectedMutex.Lock()
-	connectedPlayers[playerConn.GUID] = ws
+	connectedPlayers[playerConn.GUID] = conn
 	connectedMutex.Unlock()
 
 	defer func() {
 		connectedMutex.Lock()
 		delete(connectedPlayers, playerConn.GUID)
 		connectedMutex.Unlock()
-		ws.Close()
+		conn.Close()
 	}()
 
 	log.Printf("Player %d connected!", playerConn.GUID)
 
+	// Signal to other players that this player has connected
+	notifyOthers(playerConn.GUID)
+
 	// Keep connection open
 	for {
-		_, _, err := ws.ReadMessage()
+		var message types.SignalingMessage
+		err := conn.ReadJSON(&message)
 		if err != nil {
 			log.Println("Player WebSocket read error:", err)
 			break
 		}
+		forwardMessage(message)
+	}
+}
+
+func forwardMessage(msg types.SignalingMessage) {
+	connectedMutex.Lock()
+	defer connectedMutex.Unlock()
+	for playerGUID, conn := range connectedPlayers {
+		if playerGUID == msg.From {
+			continue
+		}
+		conn.WriteJSON(msg)
 	}
 }
 

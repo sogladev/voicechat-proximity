@@ -32,3 +32,11 @@ type PlayerConnection struct {
 	GUID   int    `json:"guid"`
 	Secret string `json:"secret"`
 }
+
+// SignalingMessage is used to send signaling messages between players
+type SignalingMessage struct {
+	Type string `json:"type"` // e.g., "new-player", "offer", "answer", "candidate", "join"
+	From int    `json:"from"`
+	To   string `json:"to"`
+	Data string `json:"data"`
+}
