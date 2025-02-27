@@ -6,21 +6,16 @@ import { assert } from '@vueuse/core';
 
 const props = defineProps<{
   players: Player[]
-  guid: string
+  guid: number
 }>()
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const width = 480
 const height = 480
 
-// Helper function to convert degrees to radians
-const degreesToRadians = (degrees: number) => {
-  return degrees * Math.PI / 180
-}
-
 // Helper function to draw orientation indicator
 const drawOrientationIndicator = (ctx: CanvasRenderingContext2D, x: number, y: number, orientation: number, color: string, size: number = 10) => {
-  const radians = degreesToRadians(orientation)
+  const radians = 2 * Math.PI - orientation
   const dirX = Math.sin(radians) * size
   const dirY = -Math.cos(radians) * size
 
@@ -83,13 +78,9 @@ const drawMinimap = () => {
     const dy = player.position.y - playerSelf.position.y
     const distance = Math.sqrt(dx * dx + dy * dy)
 
-    // Calculate relative orientation
-    let relativeOrientation = Math.atan2(dy, dx) * 180 / Math.PI
-    relativeOrientation = (relativeOrientation + 360) % 360
-
     if (distance <= DEFAULT_VISIBILITY_DISTANCE) {
-      const x = width / 2 + dx
-      const y = height / 2 + dy
+      const x = height / 2 - dy
+      const y = width / 2 - dx
 
       // Draw player dot
       ctx.beginPath()
@@ -108,7 +99,7 @@ const drawMinimap = () => {
 
       // Draw distance and relative orientation
       ctx.font = '10px Arial'
-      ctx.fillText(`${Math.round(distance)}y, ${Math.round(relativeOrientation)}°`, x, y + 15)
+      ctx.fillText(`${Math.round(distance)}y`, x, y + 15)
     }
   })
 }

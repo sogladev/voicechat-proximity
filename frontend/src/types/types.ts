@@ -7,7 +7,7 @@ export interface Position {
 }
 
 export interface Player {
-  guid: string;
+  guid: number;
   name: string;
   position: Position;
   alive: boolean;

@@ -7,7 +7,7 @@ import type { Player, PositionUpdate } from './types/types'
 const url = 'ws://localhost:22142/ws'
 const { status, data, send, open, close } = useWebSocket(url)
 
-const guid = ref('player-guid-1')
+const guid = ref(8)
 const isConnected = ref(false)
 const players = ref<Player[] | null>(null)
 

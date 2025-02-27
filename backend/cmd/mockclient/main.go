@@ -32,8 +32,8 @@ func main() {
 	players := map[string]*MockPlayer{
 		"player1": {
 			Player: types.Player{
-				GUID:     "player-guid-1",
-				Name:     "PlayerOne",
+				GUID:     8,
+				Name:     "Alice",
 				Position: types.Position{X: 0, Y: 0, Z: 0, O: 0},
 				Alive:    true,
 				Zone:     1,
@@ -44,8 +44,8 @@ func main() {
 		},
 		"player2": {
 			Player: types.Player{
-				GUID:     "player-guid-2",
-				Name:     "PlayerTwo",
+				GUID:     9,
+				Name:     "Bob",
 				Position: types.Position{X: 15, Y: 15, Z: 0, O: 0},
 				Alive:    true,
 				Zone:     1,
@@ -54,7 +54,7 @@ func main() {
 			},
 			Speed:         5,
 			MovementAngle: 0,
-			TurnRate:      0.05,
+			TurnRate:      0.02,
 		},
 	}
 
@@ -105,9 +105,8 @@ func main() {
 			p2.Player.Position.Y *= scale
 		}
 
-		// Update orientation to match movement direction (in degrees)
-		// Convert from math angle (counterclockwise from east) to WoW angle (clockwise from north)
-		p2.Player.Position.O = math.Mod((-p2.MovementAngle+math.Pi/2)*180/math.Pi+360, 360)
+		// Update orientation to match movement direction (in radians)
+		p2.Player.Position.O = math.Mod(p2.MovementAngle, 2*math.Pi)
 
 		// Create position update
 		update := types.PositionUpdate{

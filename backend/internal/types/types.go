@@ -8,7 +8,7 @@ type Position struct {
 }
 
 type Player struct {
-	GUID     string   `json:"guid"`
+	GUID     int      `json:"guid"`
 	Name     string   `json:"name"`
 	Position Position `json:"position"`
 	Alive    bool     `json:"alive"`
@@ -29,6 +29,6 @@ type PositionUpdate struct {
 
 // PlayerConnection is used to authenticate a player
 type PlayerConnection struct {
-	GUID   string `json:"guid"`
+	GUID   int    `json:"guid"`
 	Secret string `json:"secret"`
 }

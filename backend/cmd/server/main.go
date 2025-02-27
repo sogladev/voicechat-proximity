@@ -13,10 +13,10 @@ import (
 
 var (
 	// map[mapID]map[playerGUID]Player
-	mapPlayerPositions = make(map[int]map[string]types.Player)
+	mapPlayerPositions = make(map[int]map[int]types.Player)
 	positionsMutex     sync.RWMutex
 	// map[playerGUID]*websocket.Conn
-	connectedPlayers = make(map[string]*websocket.Conn)
+	connectedPlayers = make(map[int]*websocket.Conn)
 	connectedMutex   sync.RWMutex
 )
 
@@ -50,7 +50,7 @@ func handlePlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: Use the GUID and secret to link the player
-	log.Printf("Player connected: GUID=%s, Secret=%s\n",
+	log.Printf("Player connected: GUID=%d, Secret=%s\n",
 		playerConn.GUID, playerConn.Secret)
 
 	// Store player connection
@@ -65,7 +65,7 @@ func handlePlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 		ws.Close()
 	}()
 
-	log.Printf("Player %s connected!", playerConn.GUID)
+	log.Printf("Player %d connected!", playerConn.GUID)
 
 	// Keep connection open
 	for {
@@ -86,16 +86,19 @@ func broadcastPlayerUpdates() {
 
 	for playerGUID, conn := range connectedPlayers {
 		// Find player's map
-		var playerMap int = 0
+		var playerMap int
+		playerFound := false
 		for mapID, players := range mapPlayerPositions {
 			if _, exists := players[playerGUID]; exists {
 				playerMap = mapID
+				playerFound = true
 				break
 			}
 		}
 
-		if playerMap == 0 {
-			log.Printf("Player %s could not be found in any map!", playerGUID)
+		if !playerFound {
+			log.Printf("Player %d could not be found in any map!", playerGUID)
+			break
 		}
 
 		// Get nearby players, including self, from the same map
@@ -123,9 +126,9 @@ func broadcastPlayerUpdates() {
 		}
 
 		data, _ := json.Marshal(update)
-		log.Printf("Sending update to player %s: %s", playerGUID, string(data))
+		log.Printf("Sending update to player %d: %s", playerGUID, string(data))
 		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			log.Printf("Error sending to player %s: %v", playerGUID, err)
+			log.Printf("Error sending to player %d: %v", playerGUID, err)
 		}
 	}
 }
@@ -162,9 +165,9 @@ func mmoServerReader(conn *websocket.Conn) {
 		}
 
 		if update.Message == "positions" {
-			newPositions := make(map[int]map[string]types.Player)
+			newPositions := make(map[int]map[int]types.Player)
 			for _, mapData := range update.Data {
-				players := make(map[string]types.Player)
+				players := make(map[int]types.Player)
 				for _, player := range mapData.Players {
 					players[player.GUID] = player
 				}
