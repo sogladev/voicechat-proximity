@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"math"
 	"math/rand"
 	"time"
 
@@ -14,6 +15,9 @@ import (
 type MockPlayer struct {
 	Player types.Player
 	Speed  float64
+	// For predictable movement
+	MovementAngle float64
+	TurnRate      float64
 }
 
 func main() {
@@ -34,43 +38,83 @@ func main() {
 				Alive:    true,
 				Zone:     1,
 				Area:     1,
-				MapID:    1,
+				MapID:    0,
 			},
-			Speed: 0.1,
+			Speed: 0,
 		},
 		"player2": {
 			Player: types.Player{
 				GUID:     "player-guid-2",
 				Name:     "PlayerTwo",
-				Position: types.Position{X: 10, Y: 10, Z: 0, O: 0},
+				Position: types.Position{X: 15, Y: 15, Z: 0, O: 0},
 				Alive:    true,
 				Zone:     1,
 				Area:     1,
-				MapID:    1,
+				MapID:    0,
 			},
-			Speed: 0.2,
+			Speed:         5,
+			MovementAngle: 0,
+			TurnRate:      0.05,
 		},
 	}
 
 	// Update positions every 100ms
-	// ticker := time.NewTicker(100 * time.Millisecond)
 	ticker := time.NewTicker(1000 * time.Millisecond)
 	defer ticker.Stop()
 
+	// Keep track of time for smooth movement
+	lastTick := time.Now()
+
+	const maxDistance = 100.0 // Maximum distance in yards
+
 	for range ticker.C {
-		// Update each player position with random movement
-		for _, p := range players {
-			p.Player.Position.X += (rand.Float64() - 0.5) * p.Speed
-			p.Player.Position.Y += (rand.Float64() - 0.5) * p.Speed
-			p.Player.Position.O = rand.Float64() * 360
+		now := time.Now()
+		deltaTime := now.Sub(lastTick).Seconds()
+		lastTick = now
+
+		// Update player1 with random movement (unchanged)
+		p1 := players["player1"]
+		p1.Player.Position.X += (rand.Float64() - 0.5) * p1.Speed
+		p1.Player.Position.Y += (rand.Float64() - 0.5) * p1.Speed
+		// p1.Player.Position.O = rand.Float64() * 360
+		p1.Player.Position.O = 0
+
+		// Update player2 with predictable movement
+		p2 := players["player2"]
+
+		// Update movement angle for smooth turning
+		p2.MovementAngle += p2.TurnRate * deltaTime * math.Pi
+
+		// Calculate new position using circular movement
+		speedFactor := p2.Speed * deltaTime
+		p2.Player.Position.X += math.Cos(p2.MovementAngle) * speedFactor
+		p2.Player.Position.Y += math.Sin(p2.MovementAngle) * speedFactor
+
+		// Keep player2 within boundaries (100 yards from origin)
+		distanceFromOrigin := math.Sqrt(
+			p2.Player.Position.X*p2.Player.Position.X +
+				p2.Player.Position.Y*p2.Player.Position.Y)
+
+		if distanceFromOrigin > maxDistance {
+			// Reverse direction when hitting boundary
+			p2.MovementAngle += math.Pi
+
+			// Scale back position to be exactly at boundary
+			scale := maxDistance / distanceFromOrigin
+			p2.Player.Position.X *= scale
+			p2.Player.Position.Y *= scale
 		}
+
+		// Update orientation to match movement direction (in degrees)
+		// Convert from math angle (counterclockwise from east) to WoW angle (clockwise from north)
+		p2.Player.Position.O = math.Mod((-p2.MovementAngle+math.Pi/2)*180/math.Pi+360, 360)
 
 		// Create position update
 		update := types.PositionUpdate{
 			Message: "positions",
 			Data: []types.MapData{
 				{
-					MapID: 1,
+					MapID: 0,
 					Players: []types.Player{
 						players["player1"].Player,
 						players["player2"].Player,
