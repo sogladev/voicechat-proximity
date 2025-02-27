@@ -10,8 +10,27 @@ const props = defineProps<{
 }>()
 
 const canvas = ref<HTMLCanvasElement | null>(null)
-const width = 400
-const height = 400
+const width = 480
+const height = 480
+
+// Helper function to convert degrees to radians
+const degreesToRadians = (degrees: number) => {
+  return degrees * Math.PI / 180
+}
+
+// Helper function to draw orientation indicator
+const drawOrientationIndicator = (ctx: CanvasRenderingContext2D, x: number, y: number, orientation: number, color: string, size: number = 10) => {
+  const radians = degreesToRadians(orientation)
+  const dirX = Math.sin(radians) * size
+  const dirY = -Math.cos(radians) * size
+
+  ctx.beginPath()
+  ctx.moveTo(x, y)
+  ctx.lineTo(x + dirX, y + dirY)
+  ctx.strokeStyle = color
+  ctx.lineWidth = 2
+  ctx.stroke()
+}
 
 const drawMinimap = () => {
   if (!canvas.value) return
@@ -21,11 +40,25 @@ const drawMinimap = () => {
   // Clear the canvas
   ctx.clearRect(0, 0, width, height)
 
+  // Draw cardinal directions
+  ctx.font = '14px Arial'
+  ctx.fillStyle = 'black'
+  ctx.textAlign = 'center'
+  ctx.fillText('N', width / 2, 15)
+  ctx.fillText('S', width / 2, height - 5)
+  ctx.fillText('E', width - 10, height / 2)
+  ctx.fillText('W', 15, height / 2)
+
   // Draw the visibility circle
   ctx.beginPath()
   ctx.arc(width / 2, height / 2, DEFAULT_VISIBILITY_DISTANCE, 0, Math.PI * 2)
   ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)'
   ctx.stroke()
+
+  const playerSelf = props.players.find(
+    player => player.guid === props.guid
+  )
+  if (!playerSelf) { console.error('Player not found!'); return }
 
   // Draw the player at the center
   ctx.beginPath()
@@ -33,29 +66,49 @@ const drawMinimap = () => {
   ctx.fillStyle = 'blue'
   ctx.fill()
 
-  const playerSelf = props.players.find(
-    player => player.guid === props.guid
-  )
-  if (!playerSelf) { console.error('Player not found!'); return}
+  // Draw self player's orientation indicator
+  drawOrientationIndicator(ctx, width / 2, height / 2, playerSelf.position.o, 'blue')
 
-  const otherPlayers = props.players.filter(
-    player => player.guid !== props.guid
-  )
+  // Draw player's name
+  ctx.font = '12px Arial'
+  ctx.fillStyle = 'blue'
+  ctx.textAlign = 'center'
+  ctx.fillText(playerSelf.name, width / 2, height / 2 - 10)
 
   // Draw other players
-  otherPlayers.forEach(player => {
+  props.players.filter(
+    player => player.guid !== props.guid
+  ).forEach(player => {
     const dx = player.position.x - playerSelf.position.x
     const dy = player.position.y - playerSelf.position.y
     const distance = Math.sqrt(dx * dx + dy * dy)
+
+    // Calculate relative orientation
+    let relativeOrientation = Math.atan2(dy, dx) * 180 / Math.PI
+    relativeOrientation = (relativeOrientation + 360) % 360
 
     if (distance <= DEFAULT_VISIBILITY_DISTANCE) {
       const x = width / 2 + dx
       const y = height / 2 + dy
 
+      // Draw player dot
       ctx.beginPath()
       ctx.arc(x, y, 5, 0, Math.PI * 2)
       ctx.fillStyle = 'red'
       ctx.fill()
+
+      // Draw player orientation indicator
+      drawOrientationIndicator(ctx, x, y, player.position.o, 'red')
+
+      // Draw player name
+      ctx.font = '12px Arial'
+      ctx.fillStyle = 'red'
+      ctx.textAlign = 'center'
+      ctx.fillText(player.name, x, y - 15)
+
+      // Draw distance and relative orientation
+      ctx.font = '10px Arial'
+      ctx.fillText(`${Math.round(distance)}y, ${Math.round(relativeOrientation)}°`, x, y + 15)
     }
   })
 }
@@ -75,6 +128,6 @@ watch(() => props.players, () => {
 
 <style scoped>
 canvas {
-  border: 1px solid #000;
+  border: 1px solid black;
 }
 </style>
