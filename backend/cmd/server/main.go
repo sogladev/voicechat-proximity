@@ -107,7 +107,7 @@ func broadcastPlayerUpdates() {
 				// Ignore z distance
 				dx := p.Position.X - basePlayer.Position.X
 				dy := p.Position.Y - basePlayer.Position.Y
-				if dx*dx+dy*dy <= 50*50 {
+				if dx*dx+dy*dy <= 100*100 { // 100 max
 					nearbyPlayers = append(nearbyPlayers, p)
 				}
 			}
