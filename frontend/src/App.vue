@@ -1,19 +1,55 @@
 <script setup lang="ts">
 import HelloWorld from './components/HelloWorld.vue'
 import TheWelcome from './components/TheWelcome.vue'
+
+import { ref, watch } from 'vue'
+import { useWebSocket } from '@vueuse/core'
+import type { PositionUpdate } from './types/types'
+const url = 'ws://localhost:22142/ws'
+const { status, data, send, open, close } = useWebSocket(url)
+
+const isConnected = ref(false)
+const message = ref('')
+
+watch (status, () => {
+  isConnected.value = status.value === 'OPEN'
+})
+
+watch(data, () => {
+  if (data.value) {
+    try {
+      let parsedMessage = JSON.parse(data.value) as PositionUpdate
+      message.value = JSON.stringify(parsedMessage, null, 2) // Pretty print JSON
+    } catch (error) {
+      console.error('Failed to parse message:', error)
+    }
+  }
+})
+
+const sendMessage = () => {
+  const playerConnection = {
+    guid: 'player-guid-1',
+    secret: 'player-secret',
+  }
+  send(JSON.stringify(playerConnection))
+}
+
+// Send the initial connection message
+sendMessage()
 </script>
 
 <template>
   <header>
     <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-    </div>
   </header>
-
   <main>
-    <TheWelcome />
+    <!-- <TheWelcome /> -->
+    <div class="wrapper">
+      <!-- <HelloWorld msg="You did it!" /> -->
+    <p v-if="isConnected">Connected to WebSocket</p>
+    <p v-else>Connecting to WebSocket...</p>
+    <p v-if="message">Received message: <pre>{{ message }}</pre></p>
+    </div>
   </main>
 </template>
 
