@@ -8,16 +8,11 @@ const url = 'ws://localhost:22142/ws'
 const guid = ref<number | null>(null)
 const playerName = ref<string>('')
 
-const isConnected = ref(false)
 const players = ref<Player[] | null>(null)
 const { status, data, send, open, close } = useWebSocket(url, {
   autoConnect: false,
   autoReconnect: true,
 });
-
-watch(status, () => {
-  isConnected.value = status.value === 'OPEN'
-})
 
 watch(data, () => {
     if (data.value) {
@@ -65,16 +60,18 @@ const disconnect = () => {
   playerName.value = ''
   players.value = null
 }
+
+const connectionStatus = ref(status)
 </script>
 
 <template>
   <main>
     <div class="center-container">
-      <div v-if="!isConnected" class="button-container">
-        <button @click="connectAs('Alice', 8)" :disabled="isConnected">
+      <div v-if="connectionStatus !== 'OPEN'" class="button-container">
+        <button @click="connectAs('Alice', 8)" :disabled="connectionStatus === 'CONNECTING'">
           Connect as Alice
         </button>
-        <button @click="connectAs('Bob', 9)" :disabled="isConnected">
+        <button @click="connectAs('Bob', 9)" :disabled="connectionStatus === 'CONNECTING'">
           Connect as Bob
         </button>
       </div>
@@ -83,7 +80,7 @@ const disconnect = () => {
         <button @click="disconnect">Disconnect</button>
       </div>
 
-      <p v-if="status == 'CONNECTING'">Connecting to WebSocket...</p>
+      <p v-if="status === 'CONNECTING'">Connecting to WebSocket...</p>
       <p v-if="data">Received message</p>
       <Minimap v-if="players && guid" :players="players" :guid="guid" />
     </div>

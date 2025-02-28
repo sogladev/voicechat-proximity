@@ -80,15 +80,14 @@ func handlePlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 
 func handleConnect(conn *websocket.Conn, payload types.ConnectPayload) {
 	// TODO: Use the GUID and secret to link the player
-	log.Printf("Player connected: GUID=%d, Secret=%s\n",
-		payload.GUID, payload.Secret)
 
 	// Store player connection
 	connectedMutex.Lock()
 	connectedPlayers[payload.GUID] = conn
 	connectedMutex.Unlock()
 
-	log.Printf("Player %d connected!", payload.GUID)
+	log.Printf("Player connected: GUID=%d, Secret=%s\n",
+		payload.GUID, payload.Secret)
 }
 
 func handleSignaling(_ *websocket.Conn, payload types.SignalingPayload) {
@@ -142,7 +141,7 @@ func mmoServerReader(conn *websocket.Conn) {
 			return
 		}
 
-		log.Printf("Received message from MMO server: %s", string(message))
+		// log.Printf("Received message from MMO server: %s", string(message))
 
 		var update types.PlayerInMapPayload
 		if err := json.Unmarshal(message, &update); err != nil {
@@ -234,7 +233,7 @@ func handleAllMapsUpdate(_ *websocket.Conn, payload types.AllMapsPayload) {
 	positionsMutex.Unlock()
 
 	// Print the updated mapPlayerPositions for debugging
-	printMapPlayerPositions()
+	// printMapPlayerPositions()
 
 	// Notify connected player clients with personalized data
 	broadcastPlayerUpdates()
