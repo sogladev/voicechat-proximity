@@ -36,7 +36,7 @@ const drawMinimap = () => {
 
   // Draw cardinal directions
   ctx.font = '14px Arial'
-  ctx.fillStyle = 'black'
+  ctx.fillStyle = '#ccc'
   ctx.textAlign = 'center'
   ctx.fillText('N', width / 2, 15)
   ctx.fillText('S', width / 2, height - 5)
@@ -118,6 +118,7 @@ watch(() => props.players, () => {
 
 <style scoped>
 canvas {
-  border: 1px solid black;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 </style>
