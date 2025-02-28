@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sogladev/voice-chat-manager/internal/types"
@@ -47,12 +46,6 @@ func handlePlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 		conn.Close()
 	}()
 
-	// Set a ping handler
-	conn.SetPingHandler(func(appData string) error {
-		log.Println("Received ping message")
-		return conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(time.Second))
-	})
-
 	for {
 		var msg types.WebSocketMessage
 		if err := conn.ReadJSON(&msg); err != nil {
@@ -65,17 +58,6 @@ func handlePlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		switch msg.Type {
-		case types.MessageTypePing:
-			log.Println("Received a 'ping' heartbeat message from frontend")
-			pongMessage := types.WebSocketMessage{
-				Type:    "pong",
-				Payload: map[string]string{},
-			}
-			err := conn.WriteJSON(pongMessage)
-			if err != nil {
-				log.Println("Error sending pong:", err)
-			}
-
 		case types.MessageTypeConnect:
 			var payload types.ConnectPayload
 			if data, err := json.Marshal(msg.Payload); err == nil {

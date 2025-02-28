@@ -13,7 +13,6 @@ const players = ref<Player[] | null>(null)
 const { status, data, send, open, close } = useWebSocket(url, {
   autoConnect: false,
   autoReconnect: true,
-  heartbeat: { message: "ping", interval: 5 },
 });
 
 watch(status, () => {

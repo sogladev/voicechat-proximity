@@ -26,7 +26,6 @@ const (
 	// mmo-server
 	MessageTypeAllMaps string = "all-maps"
 	// players
-	MessageTypePing       string = "ping"
 	MessageTypeConnect    string = "connect"
 	MessageTypePosition   string = "position"
 	MessageTypeSignaling  string = "signaling"
