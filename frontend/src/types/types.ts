@@ -38,9 +38,9 @@ export interface ConnectPayload {
 
 export interface SignalingPayload {
     from: number
-    to: number;
+    to: number
     type: 'offer' | 'answer' | 'candidate';
-    data: RTCSessionDescriptionInit | RTCIceCandidateInit;
+    data: string
 }
 
 export interface PlayerInMapPayload {

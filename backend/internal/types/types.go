@@ -45,7 +45,7 @@ type ConnectPayload struct {
 
 type SignalingPayload struct {
 	From int    `json:"from"`
-	To   string `json:"to"`
+	To   int    `json:"to"`
 	Type string `json:"type"` // "offer", "answer", "candidate"
 	Data string `json:"data"`
 }

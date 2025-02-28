@@ -93,6 +93,10 @@ func handleConnect(conn *websocket.Conn, payload types.ConnectPayload) {
 func handleSignaling(_ *websocket.Conn, payload types.SignalingPayload) {
 	connectedMutex.Lock()
 	defer connectedMutex.Unlock()
+
+	log.Printf("Signaling message from %d to %d: %s\n",
+		payload.From, payload.To, payload.Type)
+
 	for playerGUID, conn := range connectedPlayers {
 		// Skip the player that sent the signaling message
 		if playerGUID == payload.From {
@@ -143,25 +147,9 @@ func mmoServerReader(conn *websocket.Conn) {
 
 		// log.Printf("Received message from MMO server: %s", string(message))
 
-		var update types.PlayerInMapPayload
-		if err := json.Unmarshal(message, &update); err != nil {
-			log.Println("json unmarshal error:", err)
-			continue
-		}
-
-		var msg types.WebSocketMessage
-		if err := conn.ReadJSON(&msg); err != nil {
-			log.Println("read error:", err)
-			break
-		}
-
-		if msg.Type == types.MessageTypeAllMaps {
-			var payload types.AllMapsPayload
-			if data, err := json.Marshal(msg.Payload); err == nil {
-				if err := json.Unmarshal(data, &payload); err == nil {
-					handleAllMapsUpdate(conn, payload)
-				}
-			}
+		var payload types.AllMapsPayload
+		if err := json.Unmarshal(message, &payload); err == nil {
+			handleAllMapsUpdate(conn, payload)
 		}
 	}
 }
@@ -233,7 +221,7 @@ func handleAllMapsUpdate(_ *websocket.Conn, payload types.AllMapsPayload) {
 	positionsMutex.Unlock()
 
 	// Print the updated mapPlayerPositions for debugging
-	// printMapPlayerPositions()
+	printMapPlayerPositions()
 
 	// Notify connected player clients with personalized data
 	broadcastPlayerUpdates()
