@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sogladev/voice-chat-manager/internal/types"
@@ -26,79 +27,6 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true }, // Allow all connections
 }
 
-// Filters player data and sends to connected clients
-func broadcastPlayerUpdates() {
-	positionsMutex.RLock()
-	connectedMutex.RLock()
-	defer positionsMutex.RUnlock()
-	defer connectedMutex.RUnlock()
-
-	for playerGUID, conn := range connectedPlayers {
-		// Find player's map
-		var playerMap int
-		playerFound := false
-		for mapID, players := range mapPlayerPositions {
-			if _, exists := players[playerGUID]; exists {
-				playerMap = mapID
-				playerFound = true
-				break
-			}
-		}
-
-		if !playerFound {
-			log.Printf("Player %d could not be found in any map!", playerGUID)
-			break
-		}
-
-		// Get nearby players, including self, from the same map
-		nearbyPlayers := make([]types.Player, 0)
-		if players, exists := mapPlayerPositions[playerMap]; exists {
-			// Retrieve the base player's position from the map
-			basePlayer := players[playerGUID]
-			for _, p := range players {
-				// Ignore z distance
-				dx := p.Position.X - basePlayer.Position.X
-				dy := p.Position.Y - basePlayer.Position.Y
-				if dx*dx+dy*dy <= 100*100 { // 100 max
-					nearbyPlayers = append(nearbyPlayers, p)
-				}
-			}
-		}
-
-		// Send update to player
-		update := types.PositionUpdate{
-			Message: "positions",
-			Data: []types.MapData{{
-				MapID:   playerMap,
-				Players: nearbyPlayers,
-			}},
-		}
-
-		if err := conn.WriteJSON(update); err != nil {
-			log.Printf("Error sending to player %d: %v", playerGUID, err)
-		}
-	}
-}
-
-func notifyOthers(newPlayer int) {
-	connectedMutex.Lock()
-	defer connectedMutex.Unlock()
-
-	for playerGUID, conn := range connectedPlayers {
-		if playerGUID == newPlayer {
-			continue
-		}
-		msg := types.SignalingMessage{
-			Type: "new-player",
-			From: newPlayer,
-		}
-		conn.WriteJSON(msg)
-		if err := conn.WriteJSON(msg); err != nil {
-			log.Printf("Error sending new-player signaling message for player %d: %v", playerGUID, err)
-		}
-	}
-}
-
 func handlePlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -106,60 +34,93 @@ func handlePlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read initial player connection details
-	_, message, err := conn.ReadMessage()
-	if err != nil {
-		log.Println("Player handshake error:", err)
-		conn.Close()
-		return
-	}
+	// Create a variable to store the player's GUID
+	var playerGUID int
 
-	// Unmarshal the initial message into a PlayerConnection struct
-	var playerConn types.PlayerConnection
-	if err := json.Unmarshal(message, &playerConn); err != nil {
-		log.Println("PlayerConnection JSON unmarshal error:", err)
-		return
-	}
-
-	// TODO: Use the GUID and secret to link the player
-	log.Printf("Player connected: GUID=%d, Secret=%s\n",
-		playerConn.GUID, playerConn.Secret)
-
-	// Store player connection
-	connectedMutex.Lock()
-	connectedPlayers[playerConn.GUID] = conn
-	connectedMutex.Unlock()
-
+	// Set up cleanup on exit
 	defer func() {
-		connectedMutex.Lock()
-		delete(connectedPlayers, playerConn.GUID)
-		connectedMutex.Unlock()
+		if playerGUID != 0 {
+			connectedMutex.Lock()
+			delete(connectedPlayers, playerGUID)
+			connectedMutex.Unlock()
+		}
 		conn.Close()
 	}()
 
-	log.Printf("Player %d connected!", playerConn.GUID)
+	// Set a ping handler
+	conn.SetPingHandler(func(appData string) error {
+		log.Println("Received ping message")
+		return conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(time.Second))
+	})
 
-	// Signal to other players that this player has connected
-	notifyOthers(playerConn.GUID)
-
-	// Keep connection open
 	for {
-		var message types.SignalingMessage
-		err := conn.ReadJSON(&message)
-		if err != nil {
-			log.Println("Player WebSocket read error:", err)
+		var msg types.WebSocketMessage
+		if err := conn.ReadJSON(&msg); err != nil {
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+				log.Println("Client closed the connection")
+				break
+			}
+			log.Println("read error WebSocketMessage :", err)
 			break
 		}
-		forwardMessage(message)
+
+		switch msg.Type {
+		case types.MessageTypePing:
+			log.Println("Received a 'ping' heartbeat message from frontend")
+			pongMessage := types.WebSocketMessage{
+				Type:    "pong",
+				Payload: map[string]string{},
+			}
+			err := conn.WriteJSON(pongMessage)
+			if err != nil {
+				log.Println("Error sending pong:", err)
+			}
+
+		case types.MessageTypeConnect:
+			var payload types.ConnectPayload
+			if data, err := json.Marshal(msg.Payload); err == nil {
+				if err := json.Unmarshal(data, &payload); err == nil {
+					handleConnect(conn, payload)
+					playerGUID = payload.GUID
+				}
+			}
+
+		case types.MessageTypeSignaling:
+			var payload types.SignalingPayload
+			if data, err := json.Marshal(msg.Payload); err == nil {
+				if err := json.Unmarshal(data, &payload); err == nil {
+					handleSignaling(conn, payload)
+				}
+			}
+		}
 	}
 }
 
-func forwardMessage(msg types.SignalingMessage) {
+func handleConnect(conn *websocket.Conn, payload types.ConnectPayload) {
+	// TODO: Use the GUID and secret to link the player
+	log.Printf("Player connected: GUID=%d, Secret=%s\n",
+		payload.GUID, payload.Secret)
+
+	// Store player connection
+	connectedMutex.Lock()
+	connectedPlayers[payload.GUID] = conn
+	connectedMutex.Unlock()
+
+	log.Printf("Player %d connected!", payload.GUID)
+}
+
+func handleSignaling(_ *websocket.Conn, payload types.SignalingPayload) {
 	connectedMutex.Lock()
 	defer connectedMutex.Unlock()
 	for playerGUID, conn := range connectedPlayers {
-		if playerGUID == msg.From {
+		// Skip the player that sent the signaling message
+		if playerGUID == payload.From {
 			continue
+		}
+
+		msg := types.WebSocketMessage{
+			Type:    types.MessageTypeSignaling,
+			Payload: payload,
 		}
 		conn.WriteJSON(msg)
 	}
@@ -201,32 +162,100 @@ func mmoServerReader(conn *websocket.Conn) {
 
 		log.Printf("Received message from MMO server: %s", string(message))
 
-		var update types.PositionUpdate
+		var update types.PlayerInMapPayload
 		if err := json.Unmarshal(message, &update); err != nil {
 			log.Println("json unmarshal error:", err)
 			continue
 		}
 
-		if update.Message == "positions" {
-			newPositions := make(map[int]map[int]types.Player)
-			for _, mapData := range update.Data {
-				players := make(map[int]types.Player)
-				for _, player := range mapData.Players {
-					players[player.GUID] = player
+		var msg types.WebSocketMessage
+		if err := conn.ReadJSON(&msg); err != nil {
+			log.Println("read error:", err)
+			break
+		}
+
+		if msg.Type == types.MessageTypeAllMaps {
+			var payload types.AllMapsPayload
+			if data, err := json.Marshal(msg.Payload); err == nil {
+				if err := json.Unmarshal(data, &payload); err == nil {
+					handleAllMapsUpdate(conn, payload)
 				}
-				newPositions[mapData.MapID] = players
 			}
-			positionsMutex.Lock()
-			mapPlayerPositions = newPositions
-			positionsMutex.Unlock()
-
-			// Print the updated mapPlayerPositions for debugging
-			printMapPlayerPositions()
-
-			// Notify connected player clients with personalized data
-			broadcastPlayerUpdates()
 		}
 	}
+}
+
+// Filters player data and sends to connected clients
+func broadcastPlayerUpdates() {
+	positionsMutex.RLock()
+	connectedMutex.RLock()
+	defer positionsMutex.RUnlock()
+	defer connectedMutex.RUnlock()
+
+	for playerGUID, conn := range connectedPlayers {
+		// Find player's map
+		var playerMap int
+		playerFound := false
+		for mapID, players := range mapPlayerPositions {
+			if _, exists := players[playerGUID]; exists {
+				playerMap = mapID
+				playerFound = true
+				break
+			}
+		}
+
+		if !playerFound {
+			log.Printf("Player %d could not be found in any map!", playerGUID)
+			break
+		}
+
+		// Get nearby players, including self, from the same map
+		nearbyPlayers := make([]types.Player, 0)
+		if players, exists := mapPlayerPositions[playerMap]; exists {
+			// Retrieve the base player's position from the map
+			basePlayer := players[playerGUID]
+			for _, p := range players {
+				// Ignore z distance
+				dx := p.Position.X - basePlayer.Position.X
+				dy := p.Position.Y - basePlayer.Position.Y
+				if dx*dx+dy*dy <= 100*100 { // 100 max
+					nearbyPlayers = append(nearbyPlayers, p)
+				}
+			}
+		}
+
+		update := types.WebSocketMessage{
+			Type: types.MessageTypePosition,
+			Payload: types.PlayerInMapPayload{
+				MapID:   playerMap,
+				Players: nearbyPlayers,
+			},
+		}
+
+		if err := conn.WriteJSON(update); err != nil {
+			log.Printf("Error sending to player %d: %v", playerGUID, err)
+		}
+	}
+}
+
+func handleAllMapsUpdate(_ *websocket.Conn, payload types.AllMapsPayload) {
+	newPositions := make(map[int]map[int]types.Player)
+	for _, mapData := range payload.Data {
+		players := make(map[int]types.Player)
+		for _, player := range mapData.Players {
+			players[player.GUID] = player
+		}
+		newPositions[mapData.MapID] = players
+	}
+	positionsMutex.Lock()
+	mapPlayerPositions = newPositions
+	positionsMutex.Unlock()
+
+	// Print the updated mapPlayerPositions for debugging
+	printMapPlayerPositions()
+
+	// Notify connected player clients with personalized data
+	broadcastPlayerUpdates()
 }
 
 func handleMMOWebSocket(w http.ResponseWriter, r *http.Request) {

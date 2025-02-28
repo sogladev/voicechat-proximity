@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { assert, useWebSocket } from '@vueuse/core'
 import Minimap from '@/components/Minimap.vue'
-import type { Player, PositionUpdate, SignalingMessage } from './types/types'
+import type { Player, PlayerInMapPayload, ConnectPayload, WebSocketMessage } from './types/types'
 
 const url = 'ws://localhost:22142/ws'
 const guid = ref<number | null>(null)
@@ -13,7 +13,7 @@ const players = ref<Player[] | null>(null)
 const { status, data, send, open, close } = useWebSocket(url, {
   autoConnect: false,
   autoReconnect: true,
-  heartbeat: { message: "ping", interval: 5000 },
+  heartbeat: { message: "ping", interval: 5 },
 });
 
 watch(status, () => {
@@ -21,32 +21,25 @@ watch(status, () => {
 })
 
 watch(data, () => {
-  if (data.value) {
-    try {
-      let positionUpdate = JSON.parse(data.value) as PositionUpdate
-      // message.value = JSON.stringify(parsedMessage, null, 2) // Pretty print JSON
-      console.debug({ parsedMessage: positionUpdate })
-      console.debug(JSON.stringify(positionUpdate, null, 2)) // Pretty print JSON)
-      assert(positionUpdate.data.length === 1, 'Only 1 map should be sent')
-      players.value = positionUpdate.data[0].players; // Only 1 map
-    }
-    catch (error) {
-      try {
-        let message = JSON.parse(data.value) as SignalingMessage
-        if (message.type === 'new-player') {
-          console.debug('New player joined:', message)
+    if (data.value) {
+        try {
+            const message = JSON.parse(data.value) as WebSocketMessage
+            switch (message.type) {
+                case 'position':
+                    const PlayerInMapPayload = message.payload as PlayerInMapPayload
+                    players.value = PlayerInMapPayload.players
+                    break
+                case 'new-player':
+                    console.debug('New player joined:', message.payload)
+                    break
+                case 'player-left':
+                    console.debug('Player left:', message.payload)
+                    break
+            }
+        } catch (error) {
+            console.error('Failed to parse message:', error)
         }
-        else if (message.type === 'player-left') {
-          // console.debug('Player left:', message)
-          // players.value = players.value?.filter(player => player.guid !== message.guid)
-        }
-      }
-      catch {
-        console.error('Failed to parse message:', error)
-
-      }
     }
-  }
 })
 
 onUnmounted(() => {
@@ -56,12 +49,15 @@ onUnmounted(() => {
 const connectAs = (name: string, id: number) => {
   guid.value = id
   playerName.value = name
-  const playerConnection = {
-    guid: id,
-    secret: 'player-secret',
+  const message: WebSocketMessage<ConnectPayload> = {
+    type: 'connect',
+    payload: {
+      guid: id,
+      secret: 'player-secret',
+    }
   }
-  open() // Open the connection
-  send(JSON.stringify(playerConnection))
+  open()
+  send(JSON.stringify(message))
 }
 
 const disconnect = () => {

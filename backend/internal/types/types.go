@@ -22,21 +22,47 @@ type MapData struct {
 	Players []Player `json:"players"`
 }
 
-type PositionUpdate struct {
-	Message string    `json:"message"`
-	Data    []MapData `json:"data"`
+const (
+	// mmo-server
+	MessageTypeAllMaps string = "all-maps"
+	// players
+	MessageTypePing       string = "ping"
+	MessageTypeConnect    string = "connect"
+	MessageTypePosition   string = "position"
+	MessageTypeSignaling  string = "signaling"
+	MessageTypeNewPlayer  string = "new-player"
+	MessageTypePlayerLeft string = "player-left"
+)
+
+type WebSocketMessage struct {
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload"`
+}
+
+type ConnectPayload struct {
+	GUID   int    `json:"guid"`
+	Secret string `json:"secret"`
+}
+
+type SignalingPayload struct {
+	From int    `json:"from"`
+	To   string `json:"to"`
+	Type string `json:"type"` // "offer", "answer", "candidate"
+	Data string `json:"data"`
+}
+
+type PlayerInMapPayload struct {
+	MapID   int      `json:"mapId"`
+	Players []Player `json:"players"`
+}
+
+// sent by mmo-server
+type AllMapsPayload struct {
+	Data []MapData `json:"data"`
 }
 
 // PlayerConnection is used to authenticate a player
 type PlayerConnection struct {
 	GUID   int    `json:"guid"`
 	Secret string `json:"secret"`
-}
-
-// SignalingMessage is used to send signaling messages between players
-type SignalingMessage struct {
-	Type string `json:"type"` // e.g., "new-player", "offer", "answer", "candidate", "join"
-	From int    `json:"from"`
-	To   string `json:"to"`
-	Data string `json:"data"`
 }

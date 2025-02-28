@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"math"
 	"math/rand"
@@ -60,6 +59,7 @@ func main() {
 
 	// Update positions every 100ms
 	ticker := time.NewTicker(1000 * time.Millisecond)
+	// ticker := time.NewTicker(10000 * time.Millisecond)
 	defer ticker.Stop()
 
 	// Keep track of time for smooth movement
@@ -109,29 +109,23 @@ func main() {
 		p2.Player.Position.O = math.Mod(p2.MovementAngle, 2*math.Pi)
 
 		// Create position update
-		update := types.PositionUpdate{
-			Message: "positions",
-			Data: []types.MapData{
-				{
-					MapID: 0,
-					Players: []types.Player{
-						players["player1"].Player,
-						players["player2"].Player,
+		update := types.WebSocketMessage{
+			Type: types.MessageTypeAllMaps,
+			Payload: types.AllMapsPayload{
+				Data: []types.MapData{
+					{
+						MapID: 0,
+						Players: []types.Player{
+							players["player1"].Player,
+							players["player2"].Player,
+						},
 					},
 				},
 			},
 		}
 
-		// Send update
-		data, err := json.Marshal(update)
-		if err != nil {
-			log.Println("marshal error:", err)
-			continue
-		}
-
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			log.Println("write error:", err)
-			return
+		if err := conn.WriteJSON(update); err != nil {
+			log.Printf("Error sending mock data %v", err)
 		}
 	}
 }
