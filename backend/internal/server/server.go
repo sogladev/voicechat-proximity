@@ -186,11 +186,11 @@ func broadcastPlayerUpdates() {
 		for _, p := range playersInMap {
 			if p.GUID != playerGUID {
 				// Ignore z distance
-				dx := p.Position.X - player.Position.X
-				dy := p.Position.Y - player.Position.Y
-				if dx*dx+dy*dy <= 100*100 { // 100 max
-					nearbyPlayers = append(nearbyPlayers, p)
-				}
+				// dx := p.Position.X - player.Position.X
+				// dy := p.Position.Y - player.Position.Y
+				// if dx*dx+dy*dy <= 100*100 { // 100 max
+				nearbyPlayers = append(nearbyPlayers, p)
+				// }
 			}
 		}
 
