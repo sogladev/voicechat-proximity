@@ -5,6 +5,8 @@ import Minimap from '@/components/Minimap.vue'
 import type { Player, NearbyPlayersPayload, ConnectPayload, SignalingPayload, WebSocketMessage } from './types/types'
 import RtcConnectionStatus from '@/components/RtcConnectionStatus.vue'
 import { useWebRTCVoiceManager } from '@/composables/WebRTCManager'
+import NearbyPlayers from '@/components/NearbyPlayers.vue'
+import MicrophoneSelector from '@/components/MicrophoneSelector.vue'
 
 const url = 'ws://localhost:22142/ws'
 const GUID_ALICE = 8
@@ -82,7 +84,6 @@ onUnmounted(() => {
 })
 
 // Connect to the server as a player
-// TODO: missing secret sharing
 const connectAs = (id: number) => {
   const message: WebSocketMessage<ConnectPayload> = {
     type: 'connect',
@@ -120,13 +121,21 @@ const enableAudio = async () => {
   initializeAudio()       // Initialize AudioContext and audio handling
 }
 
+// Handle microphone selection
+const handleMicrophoneSelect = (deviceId: string) => {
+  if (!stream.value || !stream.value.active) {
+    enableAudio(); // First enable audio if not already enabled
+  } else {
+    setMicrophone(deviceId); // Change the microphone
+  }
+}
+
 // ref to store WebRTC connection info for display
 const rtcConnections = ref<Map<number, any>>(new Map());
 
 const microphoneVolumeFmt = computed(() => {
   return new Intl.NumberFormat('en-US', {
     style: 'percent',
-    minimumIntegerDigits: 2,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(microphoneVolume.value)
@@ -136,17 +145,29 @@ const microphoneVolumeFmt = computed(() => {
 <template>
   <main>
     <div class="center-container">
-      <RtcConnectionStatus :players="nearbyPlayers" :peerConnections="rtcConnections" />
+      <!-- Audio Controls Section -->
+      <div class="audio-controls">
+        <MicrophoneSelector
+          :microphones="microphones"
+          :currentMicrophone="currentMicrophone"
+          :stream="stream"
+          @select="handleMicrophoneSelect"
+        />
+        <div v-if="stream && stream.active" class="volume-indicator">
+          <div class="volume-label">Mic Volume:</div>
+          <div class="volume-meter">
+            <div class="volume-bar" :style="{ width: `${microphoneVolume.value * 100}%` }"></div>
+          </div>
+          <div class="volume-value">{{ microphoneVolumeFmt }}</div>
+        </div>
+      </div>
 
-      <p>
-        WebSocket Status : {{ connectionStatus }}
-      </p>
-
-      <p>
-        Microphone Volume: <code>{{ microphoneVolumeFmt }}</code>
-      </p>
-
-      <button v-if="!stream || (stream && !stream.active)" @click="enableAudio">Enable Microphone</button>
+      <NearbyPlayers 
+        v-if="nearbyPlayers && player" 
+        :player="player" 
+        :nearbyPlayers="nearbyPlayers" 
+        :peerConnections="rtcConnections" 
+      />
 
       <div v-if="connectionStatus !== 'OPEN'" class="button-container">
         <button @click="connectAs(GUID_ALICE)" :disabled="connectionStatus === 'CONNECTING'">
@@ -174,6 +195,53 @@ const microphoneVolumeFmt = computed(() => {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+  padding: 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.audio-controls {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 300px;
+  gap: 1rem;
+}
+
+.volume-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: rgba(45, 45, 48, 0.8);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.volume-label {
+  color: #eee;
+  font-size: 0.9rem;
+  width: 80px;
+}
+
+.volume-meter {
+  flex-grow: 1;
+  height: 8px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.volume-bar {
+  height: 100%;
+  background-color: #4CAF50;
+  transition: width 100ms ease-out;
+}
+
+.volume-value {
+  color: #eee;
+  font-size: 0.9rem;
+  width: 50px;
+  text-align: right;
 }
 
 .button-container {

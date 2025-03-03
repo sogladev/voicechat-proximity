@@ -48,3 +48,11 @@ export interface NearbyPlayersPayload {
   player: Player;
   nearbyPlayers: Player[];
 }
+
+// Add this to your existing types.ts file
+export interface MediaDeviceInfo {
+  deviceId: string;
+  groupId: string;
+  kind: string;
+  label: string;
+}

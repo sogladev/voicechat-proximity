@@ -8,7 +8,9 @@ export interface PeerConnectionInfo {
     connection: RTCPeerConnection
     audioElement?: HTMLAudioElement
     volume: number
-    // Optionally add audioLevel or other properties as needed
+    audioLevel?: number
+    connectionState: string
+    iceConnectionState: string
 }
 
 /**
@@ -106,6 +108,26 @@ export function useWebRTCVoiceManager(
             }
         })
 
+        // Add connection state change listeners
+        connection.onconnectionstatechange = () => {
+            const info = peerConnections.value.get(targetGuid);
+            if (info) {
+                peerConnections.value.set(targetGuid, {
+                    ...info,
+                    connectionState: connection.connectionState
+                });
+            }
+        };
+        connection.oniceconnectionstatechange = () => {
+            const info = peerConnections.value.get(targetGuid);
+            if (info) {
+                peerConnections.value.set(targetGuid, {
+                    ...info,
+                    iceConnectionState: connection.iceConnectionState
+                });
+            }
+        };
+
         // Listen for remote tracks and create an audio element for playback.
         connection.ontrack = event => {
             const stream = event.streams[0]
@@ -194,7 +216,7 @@ export function useWebRTCVoiceManager(
             const dy = player.position.y - selfPlayer.position.y
             const distance = Math.sqrt(dx * dx + dy * dy)
 
-            if (distance <= MAX_CONNECTION_DISTANCE) {
+            if (distance <= MAX_CONNECTION_DISTANCE * 10) {
                 // If no connection exists, create one; otherwise update the volume.
                 if (!peerConnections.value.has(player.guid)) {
                     createPeerConnection(player.guid)
