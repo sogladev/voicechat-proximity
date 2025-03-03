@@ -1,494 +1,359 @@
-import { ref } from 'vue';
-import type { Ref } from 'vue';
-import type { Player, WebSocketMessage, SignalingPayload } from '@/types/types';
+import { computed, ref, watchEffect } from 'vue'
+import { useDevicesList, useUserMedia, useEventListener, useRafFn } from '@vueuse/core'
+import type { Ref } from 'vue'
+import type { Player, WebSocketMessage, SignalingPayload } from '@/types/types'
 
-interface PeerConnectionInfo {
-    connection: RTCPeerConnection;
-    audioTrack?: MediaStreamTrack;
-    audioElement?: HTMLAudioElement;
-    connectionState: string;
-    iceConnectionState: string;
-    volume: number;
-    audioLevel?: number;
+/** Types used for players and signaling messages **/
+export interface PeerConnectionInfo {
+    connection: RTCPeerConnection
+    audioElement?: HTMLAudioElement
+    volume: number
+    // Optionally add audioLevel or other properties as needed
 }
 
-export function useWebRTCManager(localGuid: Ref<number | null>, sendMessage: (message: string) => void) {
-    const peerConnections = ref<Map<number, PeerConnectionInfo>>(new Map());
-    const localStream = ref<MediaStream | null>(null);
-    const audioContext = ref<AudioContext | null>(null);
-    const audioAnalysers = new Map<number, AnalyserNode>();
+/**
+ * useWebRTCVoiceManager
+ *
+ * This composable sets up local microphone capture and manages WebRTC peer connections.
+ * It creates a connection for any nearby player within MAX_CONNECTION_DISTANCE,
+ * updates the remote audio element volume based on distance, and tears down the connection
+ * if the player goes out of range.
+ *
+ * @param localPlayer - Reactive reference to the local player object.
+ * @param nearbyPlayers - Reactive reference to an array of nearby players.
+ * @param sendMessage - A function to send signaling messages (via a WebSocket, for example).
+ */
+export function useWebRTCVoiceManager(
+    localPlayer: Ref<Player | null>,
+    nearbyPlayers: Ref<Player[] | null>,
+    sendMessage: (message: string) => void
+) {
+    // WebRTC connection handling on player update
+    watchEffect(() => {
+        if (nearbyPlayers.value && nearbyPlayers.value.length > 0) processPlayers()
+    })
 
-    // Connection distance threshold (units match your position coordinates)
-    // If server hasn't messed up we do not need to distance check
-    // All received players are valid connections
-    // const MAX_CONNECTION_DISTANCE = 50.0;
-    const MAX_CONNECTION_DISTANCE = 200.0;
+    /** Microphone management **/
+    const { audioInputs: microphones } = useDevicesList({ requestPermissions: true })
+    const selectedMicrophoneId = ref('')
 
-    // Initialize audio
-    // const initializeAudio = async () => {
-    //     try {
-    //         localStream.value = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    //         audioContext.value = new AudioContext();
-    //         console.log('Audio initialized successfully');
-    //     } catch (error) {
-    //         console.error('Error initializing audio:', error);
-    //     }
-    // };
+    // Choose the user-selected microphone if available, or default to the first available device.
+    const currentMicrophone = computed(() => {
+        if (
+            selectedMicrophoneId.value &&
+            microphones.value.some(m => m.deviceId === selectedMicrophoneId.value)
+        ) {
+            return { deviceId: selectedMicrophoneId.value }
+        }
+        return microphones.value[0] ? { deviceId: microphones.value[0].deviceId } : true
+    })
 
+    // Use VueUse’s useUserMedia to capture audio from the current microphone.
+    const { stream, start, stop } = useUserMedia({
+        enabled: false,
+        constraints: computed(() => ({
+            audio: currentMicrophone.value,
+            video: false
+        }))
+    })
+
+    // Allow changing the microphone device.
+    const setMicrophone = (deviceId: string) => {
+        selectedMicrophoneId.value = deviceId
+        if (stream.value) {
+            stop()
+            start()
+        }
+    }
+
+    /** WebRTC connection management **/
+    const peerConnections = ref<Map<number, PeerConnectionInfo>>(new Map())
+    const MAX_CONNECTION_DISTANCE = 200.0
+
+    // Initialize a shared AudioContext for any future audio processing (if needed).
+    const audioContext = ref<AudioContext | null>(null)
     const initializeAudio = async () => {
         try {
-            localStream.value = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-            audioContext.value = new AudioContext();
-            
-            // Add a button to the UI to ensure user interaction has occurred
-            const audioButton = document.createElement('button');
-            audioButton.textContent = 'Enable Audio';
-            audioButton.style.position = 'fixed';
-            audioButton.style.bottom = '10px';
-            audioButton.style.right = '10px';
-            audioButton.style.zIndex = '1000';
-            audioButton.onclick = () => {
-                // Resume audio context if it's suspended
-                if (audioContext.value?.state === 'suspended') {
-                    audioContext.value.resume();
-                }
-                
-                // Start all audio elements
-                peerConnections.value.forEach((info) => {
-                    if (info.audioElement) {
-                        info.audioElement.play().catch(e => console.error('Failed to play audio:', e));
-                    }
-                });
-                
-                audioButton.remove();
-            };
-            document.body.appendChild(audioButton);
-            
-            console.log('Audio initialized successfully');
+            audioContext.value = new AudioContext()
         } catch (error) {
-            console.error('Error initializing audio:', error);
+            console.error('Error initializing audio context:', error)
         }
-    };
+    }
 
-    // Monitor audio levels
-    const startAudioLevelMonitoring = (targetGuid: number, stream: MediaStream) => {
-        if (!audioContext.value) return;
-        
-        const analyser = audioContext.value.createAnalyser();
-        analyser.fftSize = 256;
-        
-        const source = audioContext.value.createMediaStreamSource(stream);
-        source.connect(analyser);
-        
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        
-        audioAnalysers.set(targetGuid, analyser);
-        
-        const updateLevels = () => {
-            if (!peerConnections.value.has(targetGuid)) return;
-            
-            analyser.getByteFrequencyData(dataArray);
-            
-            // Calculate average volume level
-            let sum = 0;
-            for (let i = 0; i < bufferLength; i++) {
-                sum += dataArray[i];
-            }
-            const average = sum / bufferLength;
-            const normalizedLevel = average / 255; // Convert to 0-1 range
-            
-            // Update connection info
-            const peerInfo = peerConnections.value.get(targetGuid);
-            if (peerInfo) {
-                peerConnections.value.set(targetGuid, {
-                    ...peerInfo,
-                    audioLevel: normalizedLevel * 100, // Convert to percentage
-                });
-            }
-            
-            requestAnimationFrame(updateLevels);
-        };
-        
-        updateLevels();
-    };
-
-    // Process players and manage connections based on distance
-    const processPlayers = (players: Player[]) => {
-        if (!localGuid.value || !localStream.value) return;
-
-        console.log('Processing players:', players);
-
-        // Find local player
-        const selfPlayer = players.find(p => p.guid === localGuid.value);
-        if (!selfPlayer) return;
-
-        // Get current peer connections
-        const currentPeers = new Set(peerConnections.value.keys());
-
-        // Process each player and determine if we need a connection
-        players
-            .filter(player => player.guid !== localGuid.value)
-            .forEach(player => {
-                // Calculate distance
-                const dx = player.position.x - selfPlayer.position.x;
-                const dy = player.position.y - selfPlayer.position.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                // Check if we need to create/maintain connection
-                if (distance <= MAX_CONNECTION_DISTANCE) {
-                    // If we don't have a connection to this player, create one
-                    if (!peerConnections.value.has(player.guid)) {
-                        createPeerConnection(player.guid);
-                    } else {
-                        // Otherwise, update audio volume based on distance
-                        updateAudioVolume(player.guid, distance);
-                    }
-                    currentPeers.delete(player.guid);
-                } else {
-                    // If player is too far and we have a connection, close it
-                    if (peerConnections.value.has(player.guid)) {
-                        closePeerConnection(player.guid);
-                    }
-                }
-            });
-
-        // Close remaining connections (players who are no longer present or in range)
-        currentPeers.forEach(guid => {
-            closePeerConnection(guid);
-        });
-    };
-
-    // Create a new peer connection
+    // Create a new RTCPeerConnection and initiate signaling to a target peer.
     const createPeerConnection = async (targetGuid: number) => {
-        if (!localStream.value || !localGuid.value) return;
+        if (!stream.value || !localPlayer.value) return
 
-        console.log(`Creating peer connection to ${targetGuid}`);
+        console.log('Creating peer connection with:', targetGuid)
 
-        const peerConnection = new RTCPeerConnection({
+        const connection = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+        })
 
-        // Add local audio track to connection
-        localStream.value.getAudioTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream.value!);
-        });
-
-        // Set up event handlers
-        peerConnection.onicecandidate = (event) => {
+        // Listen for ICE candidates and send them to the remote peer.
+        useEventListener(connection, 'icecandidate', (event: RTCIceCandidateInit) => {
             if (event.candidate) {
-                const signalingMessage: WebSocketMessage<SignalingPayload> = {
+                const msg: WebSocketMessage<SignalingPayload> = {
                     type: 'signaling',
                     payload: {
-                        from: localGuid.value!,
+                        from: localPlayer.value!.guid,
                         to: targetGuid,
                         type: 'candidate',
                         data: JSON.stringify(event.candidate)
                     }
-                };
-                sendMessage(JSON.stringify(signalingMessage));
+                }
+                sendMessage(JSON.stringify(msg))
             }
-        };
+        })
 
-        // peerConnection.ontrack = (event) => {
-        //     const audioTrack = event.streams[0].getAudioTracks()[0];
-        //     const audioElement = new Audio();
-        //     audioElement.srcObject = event.streams[0];
-        //     audioElement.play();
+        // Listen for remote tracks and create an audio element for playback.
+        connection.ontrack = event => {
+            const stream = event.streams[0]
+            const audioElement = document.createElement('audio')
+            audioElement.id = `audio-${targetGuid}`
+            audioElement.srcObject = stream
+            audioElement.autoplay = true
+            audioElement.muted = false
 
-        //     peerConnections.value.set(targetGuid, {
-        //         connection: peerConnection,
-        //         audioTrack,
-        //         audioElement
-        //     });
-        // };
+            // Attempt auto-play; if blocked, add controls for manual playback.
+            audioElement.play().catch(err => {
+                console.warn('Auto-play prevented. Please interact with the audio element.', err)
+                audioElement.controls = true
+                document.body.appendChild(audioElement)
+            })
 
-        peerConnection.ontrack = (event) => {
-            console.log(`Received track from ${targetGuid}:`, event.track);
-            const audioTrack = event.streams[0].getAudioTracks()[0];
-            
-            // Create audio element
-            const audioElement = document.createElement('audio');
-            audioElement.id = `audio-${targetGuid}`;
-            audioElement.srcObject = event.streams[0];
-            audioElement.autoplay = true;
-            audioElement.muted = false;
-            
-            // Attempt to play (may be blocked by browser)
-            const playPromise = audioElement.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.warn('Auto-play was prevented:', error);
-                    // Add the audio element to the DOM to make it visible for debug
-                    audioElement.controls = true;
-                    document.body.appendChild(audioElement);
-                });
-            }
-            
-            // Start monitoring audio levels
-            startAudioLevelMonitoring(targetGuid, event.streams[0]);
+            // Update peer connection info with the new audio element.
+            const info = peerConnections.value.get(targetGuid) || { connection, volume: 1 }
+            info.audioElement = audioElement
+            peerConnections.value.set(targetGuid, info)
+        }
 
-            // Update the peer connection info
-            updateConnectionState(targetGuid, peerConnection, audioTrack, audioElement);
-        };
+        // Add local audio tracks to the connection.
+        stream.value.getAudioTracks().forEach(track => {
+            connection.addTrack(track, stream.value!)
+        })
 
-        // Store the connection
-        peerConnections.value.set(targetGuid, { connection: peerConnection });
+        // Save the connection info.
+        peerConnections.value.set(targetGuid, { connection, volume: 1 })
 
-        // Create and send offer
+        // Create and send an offer to start the connection.
         try {
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-
-            const signalingMessage: WebSocketMessage<SignalingPayload> = {
+            const offer = await connection.createOffer()
+            await connection.setLocalDescription(offer)
+            const msg: WebSocketMessage<SignalingPayload> = {
                 type: 'signaling',
                 payload: {
-                    from: localGuid.value,
+                    from: localPlayer.value!.guid,
                     to: targetGuid,
                     type: 'offer',
                     data: JSON.stringify({ sdp: offer.sdp, type: offer.type })
                 }
-            };
-            sendMessage(JSON.stringify(signalingMessage));
+            }
+            sendMessage(JSON.stringify(msg))
         } catch (error) {
-            console.error('Error creating offer:', error);
+            console.error('Error creating offer:', error)
         }
-    };
+    }
 
-    // Update connection state info
-    const updateConnectionState = (
-        targetGuid: number, 
-        connection?: RTCPeerConnection,
-        audioTrack?: MediaStreamTrack,
-        audioElement?: HTMLAudioElement
-    ) => {
-        const peerInfo = peerConnections.value.get(targetGuid);
-        if (!peerInfo) return;
-        
-        const conn = connection || peerInfo.connection;
-        
-        peerConnections.value.set(targetGuid, {
-            ...peerInfo,
-            connection: conn,
-            audioTrack: audioTrack || peerInfo.audioTrack,
-            audioElement: audioElement || peerInfo.audioElement,
-            connectionState: conn.connectionState,
-            iceConnectionState: conn.iceConnectionState
-        });
-    };
+    // Update the volume of a remote audio element based on distance.
+    const updateAudioVolume = (targetGuid: number, distance: number) => {
+        const info = peerConnections.value.get(targetGuid)
+        if (info && info.audioElement) {
+            // Use a linear fall-off (volume goes to zero at MAX_CONNECTION_DISTANCE)
+            const distanceFactor = Math.max(0, 1 - distance / MAX_CONNECTION_DISTANCE)
+            info.audioElement.volume = distanceFactor
+            info.volume = distanceFactor
+            peerConnections.value.set(targetGuid, info)
+        }
+    }
 
-    // Close a peer connection
-    // const closePeerConnection = (targetGuid: number) => {
-    //     const peerInfo = peerConnections.value.get(targetGuid);
-    //     if (peerInfo) {
-    //         console.log(`Closing peer connection to ${targetGuid}`);
-    //         if (peerInfo.audioElement) {
-    //             peerInfo.audioElement.pause();
-    //             peerInfo.audioElement.srcObject = null;
-    //         }
-    //         peerInfo.connection.close();
-    //         peerConnections.value.delete(targetGuid);
-    //     }
-    // };
-
-    // Close a peer connection
+    // Close and clean up a peer connection.
     const closePeerConnection = (targetGuid: number) => {
-        const peerInfo = peerConnections.value.get(targetGuid);
-        if (peerInfo) {
-            console.log(`Closing peer connection to ${targetGuid}`);
-            if (peerInfo.audioElement) {
-                peerInfo.audioElement.pause();
-                peerInfo.audioElement.srcObject = null;
-                
-                // Remove from DOM if it was added
-                const elementInDom = document.getElementById(`audio-${targetGuid}`);
-                if (elementInDom) {
-                    elementInDom.remove();
+        const info = peerConnections.value.get(targetGuid)
+        if (info) {
+            if (info.audioElement) {
+                info.audioElement.pause()
+                info.audioElement.srcObject = null
+                const el = document.getElementById(`audio-${targetGuid}`)
+                if (el) el.remove()
+            }
+            info.connection.close()
+            peerConnections.value.delete(targetGuid)
+        }
+    }
+
+    // Process nearby players: create, update, or close connections based on distance.
+    const processPlayers = () => {
+        if (!localPlayer.value || !stream.value || !nearbyPlayers.value) return
+
+        const selfPlayer = localPlayer.value
+        const currentPeers = new Set(peerConnections.value.keys())
+
+        nearbyPlayers.value.forEach(player => {
+            const dx = player.position.x - selfPlayer.position.x
+            const dy = player.position.y - selfPlayer.position.y
+            const distance = Math.sqrt(dx * dx + dy * dy)
+
+            if (distance <= MAX_CONNECTION_DISTANCE) {
+                // If no connection exists, create one; otherwise update the volume.
+                if (!peerConnections.value.has(player.guid)) {
+                    createPeerConnection(player.guid)
+                } else {
+                    updateAudioVolume(player.guid, distance)
+                }
+                currentPeers.delete(player.guid)
+            } else {
+                if (peerConnections.value.has(player.guid)) {
+                    closePeerConnection(player.guid)
                 }
             }
-            
-            // Stop audio monitoring
-            const analyser = audioAnalysers.get(targetGuid);
-            if (analyser) {
-                audioAnalysers.delete(targetGuid);
-            }
-            
-            peerInfo.connection.close();
-            peerConnections.value.delete(targetGuid);
-        }
-    };
+        })
 
-    // Process incoming signaling messages
+        // Close any connections that are not present in the current nearby players list.
+        currentPeers.forEach(guid => {
+            closePeerConnection(guid)
+        })
+    }
+
+    // Handle incoming signaling messages (offer, answer, candidate).
     const handleSignalingMessage = async (payload: SignalingPayload) => {
-        if (!localGuid.value) return;
+        if (!localPlayer.value || payload.to !== localPlayer.value.guid) return
 
-        // Ignore messages not intended for us
-        if (payload.to !== localGuid.value) return;
-
-        const fromGuid = payload.from;
-
+        const fromGuid = payload.from
         switch (payload.type) {
             case 'offer': {
-                console.log(`Received offer from ${fromGuid}`);
-                const offerData = JSON.parse(payload.data);
-
-                // Create peer connection if it doesn't exist
-                if (!peerConnections.value.has(fromGuid)) {
-                    const peerConnection = new RTCPeerConnection({
+                let connection: RTCPeerConnection
+                if (peerConnections.value.has(fromGuid)) {
+                    connection = peerConnections.value.get(fromGuid)!.connection
+                } else {
+                    connection = new RTCPeerConnection({
                         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-                    });
+                    })
 
-                    // Add local audio
-                    if (localStream.value) {
-                        localStream.value.getAudioTracks().forEach(track => {
-                            peerConnection.addTrack(track, localStream.value!);
-                        });
-                    }
-
-                    // Set up event handlers
-                    peerConnection.onicecandidate = (event) => {
+                    // ICE candidate handling.
+                    useEventListener(connection, 'icecandidate', (event: RTCIceCandidateInit) => {
                         if (event.candidate) {
-                            const signalingMessage: WebSocketMessage<SignalingPayload> = {
+                            const msg: WebSocketMessage<SignalingPayload> = {
                                 type: 'signaling',
                                 payload: {
-                                    from: localGuid.value!,
+                                    from: localPlayer.value!.guid,
                                     to: fromGuid,
                                     type: 'candidate',
                                     data: JSON.stringify(event.candidate)
                                 }
-                            };
-                            sendMessage(JSON.stringify(signalingMessage));
+                            }
+                            sendMessage(JSON.stringify(msg))
                         }
-                    };
+                    })
 
-                    peerConnection.ontrack = (event) => {
-                        const audioTrack = event.streams[0].getAudioTracks()[0];
-                        const audioElement = new Audio();
-                        audioElement.srcObject = event.streams[0];
-                        audioElement.play();
-
-                        const existingConnection = peerConnections.value.get(fromGuid);
-                        if (existingConnection) {
-                            peerConnections.value.set(fromGuid, {
-                                ...existingConnection,
-                                audioTrack,
-                                audioElement
-                            });
-                        }
-                    };
-
-                    peerConnections.value.set(fromGuid, { connection: peerConnection });
+                    // Add local audio tracks.
+                    if (stream.value) {
+                        stream.value.getAudioTracks().forEach(track => {
+                            connection.addTrack(track, stream.value!)
+                        })
+                    }
+                    peerConnections.value.set(fromGuid, { connection, volume: 1 })
                 }
 
-                const peerInfo = peerConnections.value.get(fromGuid);
-
-                // Set remote description from offer
                 try {
-                    await peerInfo?.connection.setRemoteDescription(new RTCSessionDescription(offerData));
-
-                    // Create and send answer
-                    const answer = await peerInfo?.connection.createAnswer();
-                    await peerInfo?.connection.setLocalDescription(answer);
-
-                    const signalingMessage: WebSocketMessage<SignalingPayload> = {
+                    await connection.setRemoteDescription(new RTCSessionDescription(JSON.parse(payload.data)))
+                    const answer = await connection.createAnswer()
+                    await connection.setLocalDescription(answer)
+                    const msg: WebSocketMessage<SignalingPayload> = {
                         type: 'signaling',
                         payload: {
-                            from: localGuid.value,
+                            from: localPlayer.value!.guid,
                             to: fromGuid,
                             type: 'answer',
-                            data: JSON.stringify({ sdp: answer?.sdp, type: answer?.type })
+                            data: JSON.stringify({ sdp: answer.sdp, type: answer.type })
                         }
-                    };
-                    sendMessage(JSON.stringify(signalingMessage));
+                    }
+                    sendMessage(JSON.stringify(msg))
                 } catch (error) {
-                    console.error('Error handling offer:', error);
+                    console.error('Error handling offer:', error)
                 }
-                break;
+                break
             }
-
             case 'answer': {
-                console.log(`Received answer from ${fromGuid}`);
-                const peerInfo = peerConnections.value.get(fromGuid);
-                if (peerInfo) {
-                    const answerData = JSON.parse(payload.data);
+                const info = peerConnections.value.get(fromGuid)
+                if (info) {
                     try {
-                        await peerInfo.connection.setRemoteDescription(new RTCSessionDescription(answerData));
+                        await info.connection.setRemoteDescription(new RTCSessionDescription(JSON.parse(payload.data)))
                     } catch (error) {
-                        console.error('Error handling answer:', error);
+                        console.error('Error handling answer:', error)
                     }
                 }
-                break;
+                break
             }
-
             case 'candidate': {
-                console.log(`Received ICE candidate from ${fromGuid}`);
-                const peerInfo = peerConnections.value.get(fromGuid);
-                if (peerInfo) {
-                    const candidate = JSON.parse(payload.data);
+                const info = peerConnections.value.get(fromGuid)
+                if (info) {
                     try {
-                        await peerInfo.connection.addIceCandidate(new RTCIceCandidate(candidate));
+                        await info.connection.addIceCandidate(new RTCIceCandidate(JSON.parse(payload.data)))
                     } catch (error) {
-                        console.error('Error adding ICE candidate:', error);
+                        console.error('Error adding ICE candidate:', error)
                     }
                 }
-                break;
+                break
             }
         }
-    };
+    }
 
-    // Update audio volume based on distance
-    // const updateAudioVolume = (targetGuid: number, distance: number) => {
-    //     const peerInfo = peerConnections.value.get(targetGuid);
-    //     if (peerInfo && peerInfo.audioElement) {
-    //         // Linear falloff from 1.0 at distance 0 to 0.0 at MAX_CONNECTION_DISTANCE
-    //         const volume = Math.max(0, 1 - distance / MAX_CONNECTION_DISTANCE);
-    //         peerInfo.audioElement.volume = volume;
-    //     }
-    // };
-
-    // Update audio volume based on distance
-    const updateAudioVolume = (targetGuid: number, distance: number) => {
-        const peerInfo = peerConnections.value.get(targetGuid);
-        if (peerInfo && peerInfo.audioElement) {
-            // Linear falloff from 1.0 at distance 0 to 0.0 at MAX_CONNECTION_DISTANCE
-            const volume = Math.max(0, 1 - distance / MAX_CONNECTION_DISTANCE);
-            peerInfo.audioElement.volume = volume;
-            
-            // Update the stored volume value
-            peerConnections.value.set(targetGuid, {
-                ...peerInfo,
-                volume
-            });
-        }
-    };
-
-    // Clean up all connections
+    // Cleanup all connections and media streams.
     const cleanup = () => {
-        peerConnections.value.forEach((info, guid) => {
-            closePeerConnection(guid);
-        });
+        peerConnections.value.forEach((_, guid) => {
+            closePeerConnection(guid)
+        })
 
-        if (localStream.value) {
-            localStream.value.getTracks().forEach(track => track.stop());
-            localStream.value = null;
+        if (stream.value) {
+            stream.value.getTracks().forEach(track => track.stop())
         }
 
         if (audioContext.value) {
-            audioContext.value.close();
-            audioContext.value = null;
+            audioContext.value.close()
         }
-    };
+    }
 
-    // Get getPeerConnections
-    const getPeerConnections = () => {
-        return peerConnections.value;
-    };
+    // Microphone input volume monitoring
+    const microphoneVolume = ref(0)
+    const startVolumeMonitoring = () => {
+        if (!audioContext.value || !stream.value) return
+
+        const analyser = audioContext.value.createAnalyser()
+        analyser.fftSize = 256
+
+        const source = audioContext.value.createMediaStreamSource(stream.value)
+        source.connect(analyser)
+
+        const bufferLength = analyser.frequencyBinCount
+        const dataArray = new Uint8Array(bufferLength)
+
+        useRafFn(() => {
+            analyser.getByteFrequencyData(dataArray)
+            const sum = dataArray.reduce((a, b) => a + b, 0)
+            const average = sum / bufferLength
+            microphoneVolume.value = average / 255 // Normalize to 0-1 range
+        })
+    }
+
+    // Start monitoring when stream is available
+    watchEffect(() => {
+        if (stream.value) {
+            startVolumeMonitoring()
+        }
+    })
 
     return {
         initializeAudio,
-        processPlayers,
         handleSignalingMessage,
+        processPlayers,
         cleanup,
-        getPeerConnections
-    };
+        setMicrophone,
+        getPeerConnections: () => peerConnections.value,
+        stream,
+        currentMicrophone,
+        microphones,
+        start,
+        microphoneVolume
+    }
 }

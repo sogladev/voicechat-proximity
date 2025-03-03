@@ -1,12 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import type { Player } from '@/types/types'
+import { ref, onMounted, watch, watchEffect } from 'vue'
+import { type NearbyPlayersPayload, type Player } from '@/types/types'
 import { DEFAULT_VISIBILITY_DISTANCE } from '@/model/constants'
 
-const props = defineProps<{
-  players: Player[]
-  guid: number
-}>()
+const props = defineProps<NearbyPlayersPayload>()
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const width = 480
@@ -49,10 +46,7 @@ const drawMinimap = () => {
   ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)'
   ctx.stroke()
 
-  const playerSelf = props.players.find(
-    player => player.guid === props.guid
-  )
-  if (!playerSelf) { console.error('Player not found!'); return }
+  if (!props.player) { console.error('Player not found!'); return }
 
   // Draw the player at the center
   ctx.beginPath()
@@ -61,20 +55,18 @@ const drawMinimap = () => {
   ctx.fill()
 
   // Draw self player's orientation indicator
-  drawOrientationIndicator(ctx, width / 2, height / 2, playerSelf.position.o, 'blue')
+  drawOrientationIndicator(ctx, width / 2, height / 2, props.player.position.o, 'blue')
 
   // Draw player's name
   ctx.font = '12px Arial'
   ctx.fillStyle = 'blue'
   ctx.textAlign = 'center'
-  ctx.fillText(playerSelf.name, width / 2, height / 2 - 10)
+  ctx.fillText(props.player.name, width / 2, height / 2 - 10)
 
   // Draw other players
-  props.players.filter(
-    player => player.guid !== props.guid
-  ).forEach(player => {
-    const dx = player.position.x - playerSelf.position.x
-    const dy = player.position.y - playerSelf.position.y
+  props.nearbyPlayers.forEach(player => {
+    const dx = player.position.x - props.player.position.x
+    const dy = player.position.y - props.player.position.y
     const distance = Math.sqrt(dx * dx + dy * dy)
 
     if (distance <= DEFAULT_VISIBILITY_DISTANCE) {
@@ -103,13 +95,15 @@ const drawMinimap = () => {
   })
 }
 
-onMounted(() => {
-  drawMinimap()
-})
+// onMounted(() => {
+  // drawMinimap()
+// })
 
-watch(() => props.players, () => {
-  drawMinimap()
-}, { deep: true })
+watchEffect(() => {
+  if (props.player && props.nearbyPlayers) {
+    drawMinimap();
+  }
+});
 </script>
 
 <template>

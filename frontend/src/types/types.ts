@@ -43,7 +43,8 @@ export interface SignalingPayload {
     data: string
 }
 
-export interface PlayerInMapPayload {
-    mapId: number
-    players: Player[]
+// sent by data server
+export interface NearbyPlayersPayload {
+  player: Player;
+  nearbyPlayers: Player[];
 }

@@ -1,31 +1,47 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { useWebSocket } from '@vueuse/core'
 import Minimap from '@/components/Minimap.vue'
-import type { Player, PlayerInMapPayload, ConnectPayload, SignalingPayload, WebSocketMessage } from './types/types'
+import type { Player, NearbyPlayersPayload, ConnectPayload, SignalingPayload, WebSocketMessage } from './types/types'
 import RtcConnectionStatus from '@/components/RtcConnectionStatus.vue'
-import { useWebRTCManager } from '@/composables/WebRTCManager'
+import { useWebRTCVoiceManager } from '@/composables/WebRTCManager'
 
 const url = 'ws://localhost:22142/ws'
-const guid = ref<number | null>(null)
-const playerName = ref<string>('')
+const GUID_ALICE = 8
+const GUID_BOB = 9
 
-const players = ref<Player[] | null>(null)
+const player = ref<Player | null>(null)
+const nearbyPlayers = ref<Player[] | null>(null)
+
 const { status, data, send, open, close } = useWebSocket(url, {
-  autoConnect: false,
-  autoReconnect: true,
+  autoReconnect: {
+    retries: 3,
+    onFailed() {
+      console.error('Failed to reconnect')
+    },
+  },
+  immediate: false,
 });
+
+// Initialize WebRTC manager
+const {
+  initializeAudio,
+  handleSignalingMessage,
+  processPlayers,
+  cleanup,
+  setMicrophone,
+  getPeerConnections,
+  stream,
+  currentMicrophone,
+  microphones,
+  start,
+  microphoneVolume
+} = useWebRTCVoiceManager(player, nearbyPlayers, (message: string) => send(message));
 
 // Initialize WebRTC when connected
 watch(status, async (newStatus) => {
   if (newStatus === 'OPEN') {
     await initializeAudio();
-  }
-});
-
-watch (players, (newPlayers) => {
-  if (newPlayers) {
-    processPlayers(newPlayers);
   }
 });
 
@@ -35,14 +51,14 @@ watch(data, () => {
       const message = JSON.parse(data.value) as WebSocketMessage
       switch (message.type) {
         case 'position':
-          const PlayerInMapPayload = message.payload as PlayerInMapPayload
-          players.value = PlayerInMapPayload.players
+          const NearbyPlayersPayload = message.payload as NearbyPlayersPayload
+          nearbyPlayers.value = NearbyPlayersPayload.nearbyPlayers
+          player.value = NearbyPlayersPayload.player
           break
 
         case 'signaling':
           const signalingPayload = message.payload as SignalingPayload;
           handleSignalingMessage(signalingPayload);
-          // Update the connections ref after handling signaling
           rtcConnections.value = getPeerConnections();
           break;
 
@@ -65,9 +81,9 @@ onUnmounted(() => {
   close();
 })
 
-const connectAs = (name: string, id: number) => {
-  guid.value = id
-  playerName.value = name
+// Connect to the server as a player
+// TODO: missing secret sharing
+const connectAs = (id: number) => {
   const message: WebSocketMessage<ConnectPayload> = {
     type: 'connect',
     payload: {
@@ -82,49 +98,72 @@ const connectAs = (name: string, id: number) => {
 const disconnect = () => {
   close()
   cleanup()
-  guid.value = null
-  playerName.value = ''
-  players.value = null
+  player.value = null
+  nearbyPlayers.value = null
 }
 
-const connectionStatus = ref(status)
+const connectionStatus = computed(() => {
+  switch (status.value) {
+    case 'CONNECTING':
+      return 'CONNECTING'
+    case 'OPEN':
+      return 'OPEN'
+    case 'CLOSED':
+      return 'CLOSED'
+    default:
+      return 'IDLE'
+  }
+})
+
+const enableAudio = async () => {
+  await start()           // Request microphone permission and start capturing
+  initializeAudio()       // Initialize AudioContext and audio handling
+}
 
 // ref to store WebRTC connection info for display
 const rtcConnections = ref<Map<number, any>>(new Map());
 
-// Initialize WebRTC manager
-const {
-  initializeAudio,
-  processPlayers,
-  handleSignalingMessage,
-  cleanup,
-  getPeerConnections
-} = useWebRTCManager(guid, (message: string) => send(message));
+const microphoneVolumeFmt = computed(() => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumIntegerDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(microphoneVolume.value)
+})
 </script>
 
 <template>
   <main>
     <div class="center-container">
-      <RtcConnectionStatus
-       :players="players" :peerConnections="rtcConnections" />
+      <RtcConnectionStatus :players="nearbyPlayers" :peerConnections="rtcConnections" />
 
+      <p>
+        WebSocket Status : {{ connectionStatus }}
+      </p>
+
+      <p>
+        Microphone Volume: <code>{{ microphoneVolumeFmt }}</code>
+      </p>
+
+      <button v-if="!stream || (stream && !stream.active)" @click="enableAudio">Enable Microphone</button>
 
       <div v-if="connectionStatus !== 'OPEN'" class="button-container">
-        <button @click="connectAs('Alice', 8)" :disabled="connectionStatus === 'CONNECTING'">
+        <button @click="connectAs(GUID_ALICE)" :disabled="connectionStatus === 'CONNECTING'">
           Connect as Alice
         </button>
-        <button @click="connectAs('Bob', 9)" :disabled="connectionStatus === 'CONNECTING'">
+        <button @click="connectAs(GUID_BOB)" :disabled="connectionStatus === 'CONNECTING'">
           Connect as Bob
         </button>
       </div>
       <div v-else class="status-container">
-        <p>Connected as {{ playerName }} (GUID: {{ guid }})</p>
-        <button @click="disconnect">Disconnect</button>
+        <template v-if="player">
+          <p>Connected as {{ player.name }} (GUID: {{ player.guid }})</p>
+          <button @click="disconnect">Disconnect</button>
+        </template>
       </div>
 
-      <p v-if="status === 'CONNECTING'">Connecting to WebSocket...</p>
-      <p v-if="data">Received message</p>
-      <Minimap v-if="players && guid" :players="players" :guid="guid" />
+      <Minimap v-if="nearbyPlayers && player" :player="player" :nearbyPlayers="nearbyPlayers" />
     </div>
   </main>
 </template>

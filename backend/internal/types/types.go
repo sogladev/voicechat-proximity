@@ -1,5 +1,7 @@
 package types
 
+import "errors"
+
 type Position struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
@@ -20,6 +22,39 @@ type Player struct {
 type MapData struct {
 	MapID   int      `json:"mapId"`
 	Players []Player `json:"players"`
+}
+
+// sent by mmo-server
+type AllMapsPayload struct {
+	Data []MapData `json:"data"`
+}
+
+type AllMapData []MapData
+
+func (a AllMapData) GetPlayerByGUID(guid int) (Player, error) {
+	for _, mapData := range a {
+		for _, p := range mapData.Players {
+			if p.GUID == guid {
+				return p, nil
+			}
+		}
+	}
+	return Player{}, errors.New("Player not found")
+}
+
+func (a AllMapData) GetPlayersByMapId(mapId int) ([]Player, error) {
+	for _, mapData := range a {
+		if mapData.MapID == mapId {
+			return mapData.Players, nil
+		}
+	}
+	return nil, errors.New("Map not found")
+}
+
+// sent by data server
+type NearbyPlayersPayload struct {
+	Player        Player   `json:"player"`
+	NearbyPlayers []Player `json:"nearbyPlayers"`
 }
 
 const (
@@ -48,20 +83,4 @@ type SignalingPayload struct {
 	To   int    `json:"to"`
 	Type string `json:"type"` // "offer", "answer", "candidate"
 	Data string `json:"data"`
-}
-
-type PlayerInMapPayload struct {
-	MapID   int      `json:"mapId"`
-	Players []Player `json:"players"`
-}
-
-// sent by mmo-server
-type AllMapsPayload struct {
-	Data []MapData `json:"data"`
-}
-
-// PlayerConnection is used to authenticate a player
-type PlayerConnection struct {
-	GUID   int    `json:"guid"`
-	Secret string `json:"secret"`
 }

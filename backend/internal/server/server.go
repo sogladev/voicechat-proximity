@@ -11,9 +11,8 @@ import (
 )
 
 var (
-	// map[mapID]map[playerGUID]Player
-	mapPlayerPositions = make(map[int]map[int]types.Player)
-	positionsMutex     sync.RWMutex
+	allMapData      = types.AllMapData{}
+	allMapDataMutex sync.RWMutex
 	// map[playerGUID]*websocket.Conn
 	connectedPlayers = make(map[int]*websocket.Conn)
 	connectedMutex   sync.RWMutex
@@ -124,10 +123,11 @@ func NewMMOServer(addr string) *http.Server {
 
 // Debugging function to print the current mapPlayerPositions map
 func printMapPlayerPositions() {
-	positionsMutex.RLock()
-	defer positionsMutex.RUnlock()
+	allMapDataMutex.RLock()
+	defer allMapDataMutex.RUnlock()
 
-	data, err := json.MarshalIndent(mapPlayerPositions, "", "  ")
+	// Pretty print with indents
+	data, err := json.MarshalIndent(allMapData, "", " ")
 	if err != nil {
 		log.Println("Error marshaling mapPlayerPositions:", err)
 		return
@@ -139,54 +139,55 @@ func printMapPlayerPositions() {
 // Handles incoming messages from the MMO server
 func mmoServerReader(conn *websocket.Conn) {
 	for {
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			log.Println("read error:", err)
-			return
+		var msg types.WebSocketMessage
+		if err := conn.ReadJSON(&msg); err != nil {
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+				log.Println("MMO server closed the connection")
+				break
+			}
+			log.Println("read error WebSocketMessage:", err)
+			break
 		}
 
-		// log.Printf("Received message from MMO server: %s", string(message))
-
-		var payload types.AllMapsPayload
-		if err := json.Unmarshal(message, &payload); err == nil {
-			handleAllMapsUpdate(conn, payload)
+		switch msg.Type {
+		case types.MessageTypeAllMaps:
+			var payload types.AllMapsPayload
+			if data, err := json.Marshal(msg.Payload); err == nil {
+				if err := json.Unmarshal(data, &payload); err == nil {
+					handleAllMapsUpdate(payload)
+				}
+			}
 		}
 	}
 }
 
 // Filters player data and sends to connected clients
+// data of nearby players, including self, from the same map
 func broadcastPlayerUpdates() {
-	positionsMutex.RLock()
+	allMapDataMutex.RLock()
 	connectedMutex.RLock()
-	defer positionsMutex.RUnlock()
+	defer allMapDataMutex.RUnlock()
 	defer connectedMutex.RUnlock()
 
 	for playerGUID, conn := range connectedPlayers {
-		// Find player's map
-		var playerMap int
-		playerFound := false
-		for mapID, players := range mapPlayerPositions {
-			if _, exists := players[playerGUID]; exists {
-				playerMap = mapID
-				playerFound = true
-				break
-			}
+		player, err := allMapData.GetPlayerByGUID(playerGUID)
+		if err != nil {
+			log.Printf("Player %d is connected, but could not be found in any map!", playerGUID)
+			continue
 		}
 
-		if !playerFound {
-			log.Printf("Player %d could not be found in any map!", playerGUID)
-			break
+		playersInMap, err := allMapData.GetPlayersByMapId(player.MapID)
+		if err != nil {
+			log.Printf("Could not find players in map %d", player.MapID)
+			continue
 		}
 
-		// Get nearby players, including self, from the same map
 		nearbyPlayers := make([]types.Player, 0)
-		if players, exists := mapPlayerPositions[playerMap]; exists {
-			// Retrieve the base player's position from the map
-			basePlayer := players[playerGUID]
-			for _, p := range players {
+		for _, p := range playersInMap {
+			if p.GUID != playerGUID {
 				// Ignore z distance
-				dx := p.Position.X - basePlayer.Position.X
-				dy := p.Position.Y - basePlayer.Position.Y
+				dx := p.Position.X - player.Position.X
+				dy := p.Position.Y - player.Position.Y
 				if dx*dx+dy*dy <= 100*100 { // 100 max
 					nearbyPlayers = append(nearbyPlayers, p)
 				}
@@ -195,9 +196,9 @@ func broadcastPlayerUpdates() {
 
 		update := types.WebSocketMessage{
 			Type: types.MessageTypePosition,
-			Payload: types.PlayerInMapPayload{
-				MapID:   playerMap,
-				Players: nearbyPlayers,
+			Payload: types.NearbyPlayersPayload{
+				Player:        player,
+				NearbyPlayers: nearbyPlayers,
 			},
 		}
 
@@ -207,18 +208,10 @@ func broadcastPlayerUpdates() {
 	}
 }
 
-func handleAllMapsUpdate(_ *websocket.Conn, payload types.AllMapsPayload) {
-	newPositions := make(map[int]map[int]types.Player)
-	for _, mapData := range payload.Data {
-		players := make(map[int]types.Player)
-		for _, player := range mapData.Players {
-			players[player.GUID] = player
-		}
-		newPositions[mapData.MapID] = players
-	}
-	positionsMutex.Lock()
-	mapPlayerPositions = newPositions
-	positionsMutex.Unlock()
+func handleAllMapsUpdate(payload types.AllMapsPayload) {
+	allMapDataMutex.Lock()
+	allMapData = payload.Data
+	allMapDataMutex.Unlock()
 
 	// Print the updated mapPlayerPositions for debugging
 	printMapPlayerPositions()
