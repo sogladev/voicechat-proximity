@@ -6,7 +6,13 @@ export default defineNuxtConfig({
     process.env.VITE_ENVIROMENT == "production" ? 'pages/debug/**' : ''
   ],
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss', 'shadcn-nuxt', '@vueuse/nuxt', '@nuxt/icon'],
+  modules: ['@nuxtjs/tailwindcss', 'shadcn-nuxt', '@vueuse/nuxt', '@nuxt/icon', '@nuxtjs/color-mode'
+  ],
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark',
+    classSuffix: ''
+  },
   shadcn: {
     /**
      * Prefix for all the imported component

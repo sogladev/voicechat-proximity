@@ -2,29 +2,26 @@
 import type { Player } from '@/types/types'
 
 const props = defineProps<{
-   status: Ref<WebSocketStatus>;
-   player: Player;
-   }>()
-const volume = ref(100)
+  player: Player;
+}>()
+const volume = ref(1.0)
 const isMuted = ref(false)
 
-const statusFmt = computed(() => {
-    switch (props.status.value) {
-        case 'OPEN': return 'Online';
-        case 'CONNECTING': return 'Connecting';
-        case 'CLOSED': return 'Offline';
-    }
-});
 
 // Placeholder avatar URL; you might use a real URL or a placeholder service.
 const avatarUrl = computed(() =>
- props.player ? `https://via.placeholder.com/40?text=${props.player.name.charAt(0).toUpperCase()}` : ''
+  props.player ? `https://via.placeholder.com/40?text=${props.player.name.charAt(0).toUpperCase()}` : ''
 )
 
 const toggleMute = () => {
   isMuted.value = !isMuted.value
   // Optionally, update volume or call a method to change the remote player's audio
 }
+
+const setVolume = (newVolume: number) => {
+  volume.value = newVolume
+}
+
 </script>
 
 <template>
@@ -45,26 +42,14 @@ const toggleMute = () => {
           {{ !player.alive ? 'Dead' : 'Alive' }}
         </span>
       </p>
-      <!-- Volume control -->
       <div class="mt-2 flex items-center space-x-2">
-        <label for="volume-{{ player.guid }}" class="text-sm">Volume:</label>
-        <input
-          type="range"
-          :id="'volume-' + player.guid"
-          min="0"
-          max="100"
-          v-model="volume"
-          class="w-full"
-        />
+        <!-- Mute button -->
+        <MicrophoneControlsMuteButton :is-muted="isMuted" @toggle-mute="toggleMute" />
+        <!-- Volume control -->
+        <MicrophoneControlsVolumeSlider :volume="volume" @set-volume="setVolume" :id="'volume-' + player.guid" />
       </div>
-      <!-- Mute button -->
-      <Button variant="outline" class="mt-2" @click="toggleMute">
-        <!-- {{ isMuted ? 'Unmute' : 'Mute' }} -->
-      <Icon v-if="isMuted" name="lucide:mic-off" class="w-6 h-6" />
-      <Icon v-else name="lucide:mic" class="w-6 h-6" />
-      </Button>
       <!-- Subtext -->
-      <p class="mt-2 text-xs text-muted-foreground">Current volume: {{ volume }}%</p>
+      <p class="mt-2 text-xs text-muted-foreground">Current volume: {{ (volume * 100).toFixed(0) }}%</p>
     </div>
   </Card>
 </template>

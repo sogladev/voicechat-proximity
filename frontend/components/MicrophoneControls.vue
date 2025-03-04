@@ -92,37 +92,38 @@ defineExpose({
 
 <template>
   <div class="flex flex-col gap-2 w-full ">
-  <!-- Button to request microphone permission -->
-  <Button v-if="!hasPermission" @click="handleRequestPermission" variant="default">
-    Allow Microphone
-  </Button>
-  <!-- Once permission is granted, show the microphone dropdown -->
-  <div v-else>
-    <Select v-model="selectedMicrophoneId">
-      <SelectTrigger>
-        <SelectValue placeholder="Select a microphone" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          <SelectItem v-for="mic in microphoneOptions" :key="mic.deviceId" :value="mic.deviceId">
-            {{ mic.label || 'Unknown Device' }}
-          </SelectItem>
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  </div>
-  <!-- Show mute button and volume control -->
-  <div class="flex items-center">
-    <Button :disabled="!hasPermission" class="p-2" variant="secondary" @click="toggleMute">
-      <!-- {{ isMuted ? 'Unmute' : 'Mute' }} -->
-      <Icon v-if="isMuted" name="lucide:mic-off" class="w-6 h-6" />
-      <Icon v-else name="lucide:mic" class="w-6 h-6" />
+    <!-- Button to request microphone permission -->
+    <Button v-if="!hasPermission" @click="handleRequestPermission" variant="default">
+      Allow Microphone
     </Button>
-    <input class="w-full" :disabled="!hasPermission" type="range" min="0" max="1" step="0.01" v-model="volume" @input="setVolume(volume)" />
-    <!-- <div class="mx-2 w-32 "> -->
+    <!-- Once permission is granted, show the microphone dropdown -->
+    <div v-else>
+      <Select v-model="selectedMicrophoneId">
+        <SelectTrigger>
+          <SelectValue placeholder="Select a microphone" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem v-for="mic in microphoneOptions" :key="mic.deviceId" :value="mic.deviceId">
+              {{ mic.label || 'Unknown Device' }}
+            </SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </div>
+    <!-- Show mute button and volume control -->
+    <div class="flex flex-col">
+      <div class="flex">
+        <MicrophoneControlsMuteButton :disabled="!hasPermission" :is-muted="isMuted" @toggle-mute="toggleMute" />
+        <MicrophoneControlsVolumeSlider :disabled="!hasPermission" :volume="volume" @set-volume="setVolume" />
+        <!-- <input class="w-full accent-primary" type="range" min="0" max="1" step="0.01" v-model="volume" @input="setVolume(volume)" /> -->
+      </div>
+      <!-- <div class="mx-2 w-32 "> -->
       <!-- <Slider v-model="volume" :min="0" :max="100" :step="1" name="Volume" /> -->
-    <!-- </div> -->
+      <!-- </div> -->
+      <!-- Subtext -->
+      <p class="mt-2 text-xs text-muted-foreground">Current volume: {{ (volume * 100).toFixed(0) }}%</p>
 
-  </div>
+    </div>
   </div>
 </template>
