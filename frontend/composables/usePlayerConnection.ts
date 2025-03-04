@@ -20,8 +20,18 @@ export function usePlayerConnection() {
     immediate: false
   })
 
+  const defaultPlayer: Player = {
+    guid: -1,
+    name: 'Unknown',
+    position: { x: 0, y: 0, z:0, o: 0 },
+    alive: true,
+    zone: -1,
+    area: -1,
+    mapId: -1
+  }
+
   // Reactive state for the current player and nearby players.
-  const player = ref<Player | null>(null)
+  const player = ref<Player>(defaultPlayer)
   const nearbyPlayers = ref<Player[]>([])
   const rtcConnections = ref<any>(null) // Unused for now
 

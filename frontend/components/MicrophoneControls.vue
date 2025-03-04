@@ -45,23 +45,23 @@ const toggleMute = () => {
 const audioContext = new AudioContext()
 // [MDN Reference](https://developer.mozilla.org/docs/Web/API/BaseAudioContext/createGain) */
 const gainNode = audioContext.createGain()
-const volume = ref([50]) // Default volume 50 (50%)
+const volume = ref(0.50) // Default volume 50%
 
 watchEffect(() => {
-  gainNode.gain.value = volume.value[0]
+  gainNode.gain.value = volume.value
 })
 
 /**
  * Sets the volume level for the microphone.
  *
- * @param {number} newVolume - The new volume level to set, ranging from 0 to 100.
- * @throws {Error} Will throw an error if the newVolume is out of the range [0, 100].
+ * @param {number} newVolume - The new volume level to set, ranging from 0.0 to 1.0.
+ * @throws {Error} Will throw an error if the newVolume is out of the range [0, 1].
  */
 const setVolume = (newVolume: number) => {
-  if (newVolume < 0 || newVolume > 100) {
-    throw new Error('Volume must be between 0 and 100')
+  if (newVolume < 0 || newVolume > 1) {
+    throw new Error('Volume must be between 0.0 and 1.0')
   }
-  volume.value = [newVolume]
+  volume.value = newVolume
 }
 
 /**
@@ -91,9 +91,10 @@ defineExpose({
 </script>
 
 <template>
+  <div class="flex flex-col gap-2 w-full ">
   <!-- Button to request microphone permission -->
   <Button v-if="!hasPermission" @click="handleRequestPermission" variant="default">
-    Request Microphone Access
+    Allow Microphone
   </Button>
   <!-- Once permission is granted, show the microphone dropdown -->
   <div v-else>
@@ -111,16 +112,17 @@ defineExpose({
     </Select>
   </div>
   <!-- Show mute button and volume control -->
-  <div class="flex items-center gap-4">
-    <Button :disabled="!hasPermission" class="p-2 mt-2" variant="secondary" @click="toggleMute">
+  <div class="flex items-center">
+    <Button :disabled="!hasPermission" class="p-2" variant="secondary" @click="toggleMute">
       <!-- {{ isMuted ? 'Unmute' : 'Mute' }} -->
       <Icon v-if="isMuted" name="lucide:mic-off" class="w-6 h-6" />
       <Icon v-else name="lucide:mic" class="w-6 h-6" />
     </Button>
-    <!-- <input type="range" min="0" max="1" step="0.01" v-model="volume" @input="setVolume(volume)" /> -->
-    <div class="mx-2 w-32 ">
-      <Slider v-model="volume" :min="0" :max="100" :step="1" name="Volume" />
-    </div>
+    <input class="w-full" :disabled="!hasPermission" type="range" min="0" max="1" step="0.01" v-model="volume" @input="setVolume(volume)" />
+    <!-- <div class="mx-2 w-32 "> -->
+      <!-- <Slider v-model="volume" :min="0" :max="100" :step="1" name="Volume" /> -->
+    <!-- </div> -->
 
+  </div>
   </div>
 </template>

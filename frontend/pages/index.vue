@@ -4,6 +4,7 @@ import MicrophoneControls from '@/components/MicrophoneControls.vue'
 const name = ref('Unknown')
 const statusFmt = ref('Offline')
 const statusColor = computed(() => (statusFmt.value === 'Online' ? 'green' : 'red'))
+
 const microphoneControls = ref<typeof MicrophoneControls>()
 
 // Updated via WebSocket
@@ -29,11 +30,6 @@ const {
         </div>
 
         <!-- Middle: Microphone selection -->
-        <div class="flex flex-col">
-            <div class="text-lg font-semibold">Microphone</div>
-            <MicrophoneControls ref="microphoneControls" />
-        </div>
-
         <!-- Right side: Server info -->
         <div class="flex flex-col text-sm">
             <div class="text-lg font-semibold">Server</div>
@@ -47,7 +43,18 @@ const {
             </div>
         </div>
     </header>
-    <div class="mt-4 p-4 md:p-2 lg:p-1">
+    <div class="flex flex-col gap-4 p-1 md:p-2 lg:p-4">
+        <div class="text-lg font-semibold">Player</div>
+        <div class="flex gap-4">
+            <CurrentPlayerStatus :player="player" :status="status.toString()" />
+            <div class="flex flex-col">
+                <div class="text-lg font-semibold">Microphone</div>
+                <MicrophoneControls ref="microphoneControls" />
+            </div>
+        </div>
+
+        <NearbyPlayers :players="nearbyPlayers" />
+        <Separator class="my-4" label="Debug" />
         <Card class="max-w-md mx-auto">
             <CardHeader>
                 <CardTitle>Connect as a Player - Debug</CardTitle>
@@ -85,5 +92,12 @@ const {
         <div class="mt-4">
             <MinimapCard v-if="player && nearbyPlayers" :nearbyPlayers="nearbyPlayers" :player="player" />
         </div>
+
+        <!-- Optional sidebar for history on wide screens -->
+        <aside class="hidden lg:block w-64 p-4 border-l">
+            <h3 class="text-lg font-bold">History</h3>
+            <!-- Render history of nearby players -->
+            <p class="text-sm text-muted-foreground">Coming soon...</p>
+        </aside>
     </div>
 </template>
