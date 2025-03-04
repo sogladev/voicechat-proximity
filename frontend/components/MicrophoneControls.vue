@@ -118,7 +118,7 @@ defineExpose({
       <Icon v-else name="lucide:mic" class="w-6 h-6" />
     </Button>
     <!-- <input type="range" min="0" max="1" step="0.01" v-model="volume" @input="setVolume(volume)" /> -->
-    <div class="mx-2 min-w-12 md:w-32 ">
+    <div class="mx-2 w-32 ">
       <Slider v-model="volume" :min="0" :max="100" :step="1" name="Volume" />
     </div>
 
