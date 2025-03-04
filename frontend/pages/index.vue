@@ -1,15 +1,10 @@
 <script setup lang="ts">
-import { Badge } from '@/components/ui/badge'
+import MicrophoneControls from '@/components/MicrophoneControls.vue'
 
 const name = ref('Unknown')
 const status = ref('Offline')
 const statusColor = computed(() => (status.value === 'Online' ? 'green' : 'red'))
-
-const micStream = ref<MediaStream | null>(null)
-const handleStream = (stream: MediaStream) => {
-    console.log('Received stream from child:', stream)
-    micStream.value = stream;
-}
+const microphoneControls = ref<typeof MicrophoneControls>()
 </script>
 
 <template>
@@ -22,16 +17,17 @@ const handleStream = (stream: MediaStream) => {
             </div>
         </div>
 
-        <!-- Microphone selection -->
+        <!-- Middle: Microphone selection -->
         <div class="flex flex-col">
             <div class="text-lg font-semibold">Microphone</div>
-            <MicrophoneControls @streamReady="handleStream" />
+            <MicrophoneControls ref="microphoneControls" />
         </div>
 
         <!-- Right side: Server info -->
         <div class="flex flex-col text-sm">
+            <div class="text-lg font-semibold">Server</div>
             <div class="flex">
-                <p class=" text-grey-500">Connecting to:</p>
+                <p class=" text-grey-500">Address:</p>
                 <p class="ml-2 font-mono text-blue-600">localhost</p>
             </div>
             <div class="flex ">

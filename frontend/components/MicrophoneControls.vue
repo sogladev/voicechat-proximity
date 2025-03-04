@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { useDevicesList } from '@vueuse/core'
 
-// The microphone stream
-const emit = defineEmits<{
-  (event: 'streamReady', stream: MediaStream): void
-}>()
-
 const hasPermission = ref(false)
 const micStream = ref<MediaStream | null>(null)
 const selectedMicrophoneId = ref('')
@@ -50,13 +45,30 @@ const toggleMute = () => {
 const audioContext = new AudioContext()
 // [MDN Reference](https://developer.mozilla.org/docs/Web/API/BaseAudioContext/createGain) */
 const gainNode = audioContext.createGain()
-const volume = ref(1) // Default volume 1 (100%)
+const volume = ref([50]) // Default volume 50 (50%)
 
-const setVolume = (level: number) => {
-  volume.value = level
-  gainNode.gain.value = level
+watchEffect(() => {
+  gainNode.gain.value = volume.value[0]
+})
+
+/**
+ * Sets the volume level for the microphone.
+ *
+ * @param {number} newVolume - The new volume level to set, ranging from 0 to 100.
+ * @throws {Error} Will throw an error if the newVolume is out of the range [0, 100].
+ */
+const setVolume = (newVolume: number) => {
+  if (newVolume < 0 || newVolume > 100) {
+    throw new Error('Volume must be between 0 and 100')
+  }
+  volume.value = [newVolume]
 }
 
+/**
+ * Calculates the peak volume level
+ *
+ * @returns {number} The maximum frequency value representing the peak audio level.
+ */
 const analyzeAudioLevel = () => {
   if (!micStream.value) return 0
   const analyser = audioContext.createAnalyser()
@@ -79,33 +91,36 @@ defineExpose({
 </script>
 
 <template>
-    <!-- Button to request microphone permission -->
-    <Button v-if="!hasPermission" @click="handleRequestPermission" variant="default">
-      Request Microphone Access
+  <!-- Button to request microphone permission -->
+  <Button v-if="!hasPermission" @click="handleRequestPermission" variant="default">
+    Request Microphone Access
+  </Button>
+  <!-- Once permission is granted, show the microphone dropdown -->
+  <div v-else>
+    <Select v-model="selectedMicrophoneId">
+      <SelectTrigger>
+        <SelectValue placeholder="Select a microphone" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          <SelectItem v-for="mic in microphoneOptions" :key="mic.deviceId" :value="mic.deviceId">
+            {{ mic.label || 'Unknown Device' }}
+          </SelectItem>
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  </div>
+  <!-- Show mute button and volume control -->
+  <div class="flex items-center gap-4">
+    <Button :disabled="!hasPermission" class="p-2 mt-2" variant="secondary" @click="toggleMute">
+      <!-- {{ isMuted ? 'Unmute' : 'Mute' }} -->
+      <Icon v-if="isMuted" name="lucide:mic-off" class="w-6 h-6" />
+      <Icon v-else name="lucide:mic" class="w-6 h-6" />
     </Button>
-    <!-- Once permission is granted, show the microphone dropdown -->
-    <div v-else>
-      <Select v-model="selectedMicrophoneId">
-        <SelectTrigger>
-          <SelectValue placeholder="Select a microphone" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectItem v-for="mic in microphoneOptions" :key="mic.deviceId" :value="mic.deviceId">
-              {{ mic.label || 'Unknown Device' }}
-            </SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-      <!-- Show the volume control and mute button -->
-      <div class="flex items-center gap-4">
-        <Button class="m-1" variant="secondary" @click="toggleMute">
-          <!-- {{ isMuted ? 'Unmute' : 'Mute' }} -->
-          <Icon v-if="isMuted" name="lucide:mic-off" class="w-6 h-6 mr-2" />
-          <Icon v-else name="lucide:mic" class="w-6 h-6 mr-2" />
-        </Button>
-
-        <input type="range" min="0" max="1" step="0.01" v-model="volume" @input="setVolume(volume)" />
-      </div>
+    <!-- <input type="range" min="0" max="1" step="0.01" v-model="volume" @input="setVolume(volume)" /> -->
+    <div class="mx-2 min-w-12 md:w-32 ">
+      <Slider v-model="volume" :min="0" :max="100" :step="1" name="Volume" />
     </div>
+
+  </div>
 </template>
