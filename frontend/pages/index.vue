@@ -1,21 +1,39 @@
 <script setup lang="ts">
 import MicrophoneControls from '~/components/MicrophoneControls.vue'
 
-const microphoneControls = ref<typeof MicrophoneControls>()
+const microphoneControls = ref<InstanceType<typeof MicrophoneControls>>()
 
 // WebSocket connection for player data & signaling messages.
 const {
+    send,
+    status,
     connectAs,
     player,
     nearbyPlayers,
-    status
 } = usePlayerConnection()
 
+// Use a computed prop to maintain reactivity
+const microphoneStream = computed(() => microphoneControls.value?.microphoneStream || null)
+
 // WebRTC Manager for establishing peer connections.
-// const { handleSignalingMessage, getPeerConnections } = useWebRTCManager()
+const { initializeAudio, handleSignalingMessage, getPeerConnections } = useWebRTCVoiceManager(
+    player,
+    nearbyPlayers,
+    (message: string) => send(message),
+    status,
+    microphoneStream
+);
+
+// Add a watcher to initialize audio when the stream becomes available
+watch(microphoneStream, (newStream) => {
+  if (newStream) {
+    console.log('Microphone stream is ready, initializing WebRTC audio')
+    initializeAudio()
+  }
+}, { immediate: true })
 
 // Expose peer connections for the UI (e.g., to display volume sliders, etc.)
-// const peerConnections = getPeerConnections()
+const peerConnections = getPeerConnections()
 </script>
 
 <template>

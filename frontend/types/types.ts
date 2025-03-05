@@ -60,9 +60,9 @@ export interface MediaDeviceInfo {
 // Used by WebRTC for players and signaling messages **/
 export interface PeerConnectionInfo {
     connection: RTCPeerConnection
-    audioElement?: HTMLAudioElement
     volume: number
-    audioLevel?: number
     connectionState: string
     iceConnectionState: string
+    gainNode: GainNode
+    userVolumeFactor: number
 }

@@ -11,7 +11,8 @@ export function useWebRTCVoiceManager(
     player: Ref<Player | null>,
     nearbyPlayers: Ref<Player[] | null>,
     sendMessage: (message: string) => void,
-    status: Ref<string>
+    status: Ref<string>,
+    externalStream: Ref<MediaStream | null>
 ) {
     // WebRTC connection handling on player update
     watchEffect(() => {
@@ -24,26 +25,38 @@ export function useWebRTCVoiceManager(
 
     // Initialize a shared AudioContext for future audio processing
     const audioContext = ref<AudioContext | null>(null)
-    // Called after localStream is available and a user gesture has occurred
+
+    // Called after externalStream is available and a user gesture has occurred
     const initializeAudio = async () => {
         if (!audioContext.value) {
             try {
+                // First ensure we have user media access
+                if (!externalStream.value) {
+                    console.error('No user media stream available')
+                    return false
+                }
+
                 audioContext.value = new AudioContext()
                 // Optionally, resume the context if it's suspended
                 if (audioContext.value.state === 'suspended') {
                     await audioContext.value.resume()
                 }
+                return true
             } catch (error) {
                 console.error('Error initializing audio context:', error)
+                return false
             }
         }
+        return true
     }
-
-
 
     // Create a new RTCPeerConnection and initiate signaling to a target peer.
     const createPeerConnection = async (targetGuid: number) => {
         if (status.value != 'OPEN' || !player.value || player.value.guid <= 0) return
+        if (!externalStream.value) {
+            console.error('No user media stream available')
+            return
+        }
 
         console.debug('Creating peer connection with:', targetGuid)
 
@@ -92,30 +105,48 @@ export function useWebRTCVoiceManager(
         connection.ontrack = event => {
             if (!audioContext.value) return
 
-            // Create a source node for the remote stream.
+            // Extract the remote stream
+            const remoteStream = event.streams[0]
+
+            // Create a source node for the remote stream
             const sourceNode = audioContext.value.createMediaStreamSource(remoteStream)
 
-            // Create a GainNode to control volume.
+            // Create a GainNode to control volume
             const gainNode = audioContext.value.createGain()
             gainNode.gain.value = 1  // default volume
 
-            // Connect the source node through the gain node to the destination.
+            // Route the remote audio to the speakers
             sourceNode.connect(gainNode)
             gainNode.connect(audioContext.value.destination)
 
-            // Save the gainNode in your peerConnections mapping
-            const info = peerConnections.value.get(targetGuid) || { connection: null, volume: 1 }
-            info.gainNode = gainNode
+            // Save the gainNode in the peerConnections mapping
+            const info = peerConnections.value.get(targetGuid) || {
+                connection: connection,
+                volume: 1,
+                connectionState: connection.connectionState,
+                iceConnectionState: connection.iceConnectionState ,
+                gainNode: gainNode,
+                userVolumeFactor: 1
+            }
             peerConnections.value.set(targetGuid, info)
         }
 
         // Add local audio tracks to the connection.
-        stream.value.getAudioTracks().forEach(track => {
-            connection.addTrack(track, stream.value!)
-        })
+        if (externalStream.value) {
+            externalStream.value.getAudioTracks().forEach(track => {
+                connection.addTrack(track, externalStream.value!)
+            })
+        }
 
         // Save the connection info.
-        peerConnections.value.set(targetGuid, { connection, volume: 1 })
+        peerConnections.value.set(targetGuid, {
+            connection,
+            volume: 1,
+            connectionState: connection.connectionState,
+            iceConnectionState: connection.iceConnectionState,
+            gainNode: null as unknown as GainNode,  // Will be set later
+            userVolumeFactor: 1
+        })
 
         // Create and send an offer to start the connection.
         try {
@@ -154,12 +185,12 @@ export function useWebRTCVoiceManager(
     const closePeerConnection = (targetGuid: number) => {
         const info = peerConnections.value.get(targetGuid)
         if (info) {
-            if (info.audioElement) {
-                info.audioElement.pause()
-                info.audioElement.srcObject = null
-                const el = document.getElementById(`audio-${targetGuid}`)
-                if (el) el.remove()
+            // Clean up gain node if it exists
+            if (info.gainNode) {
+                info.gainNode.disconnect()
             }
+
+            // Close the connection
             info.connection.close()
             peerConnections.value.delete(targetGuid)
         }
@@ -224,12 +255,19 @@ export function useWebRTCVoiceManager(
                     })
 
                     // Add local audio tracks.
-                    if (stream.value) {
-                        stream.value.getAudioTracks().forEach(track => {
-                            connection.addTrack(track, stream.value!)
+                    if (externalStream.value) {
+                        externalStream.value.getAudioTracks().forEach(track => {
+                            connection.addTrack(track, externalStream.value!)
                         })
                     }
-                    peerConnections.value.set(fromGuid, { connection, volume: 1 })
+                    peerConnections.value.set(fromGuid, {
+                        connection,
+                        volume: 1,
+                        connectionState: connection.connectionState,
+                        iceConnectionState: connection.iceConnectionState,
+                        gainNode: null as unknown as GainNode,
+                        userVolumeFactor: 1
+                    })
                 }
 
                 try {
@@ -282,8 +320,8 @@ export function useWebRTCVoiceManager(
             closePeerConnection(guid)
         })
 
-        if (stream.value) {
-            stream.value.getTracks().forEach(track => track.stop())
+        if (externalStream.value) {
+            externalStream.value.getTracks().forEach(track => track.stop())
         }
 
         if (audioContext.value) {
@@ -291,32 +329,11 @@ export function useWebRTCVoiceManager(
         }
     }
 
-    // Microphone input volume monitoring
-    const microphoneVolume = ref(0)
-    const startVolumeMonitoring = () => {
-        if (!audioContext.value || !stream.value) return
-
-        const analyser = audioContext.value.createAnalyser()
-        analyser.fftSize = 256
-
-        const source = audioContext.value.createMediaStreamSource(stream.value)
-        source.connect(analyser)
-
-        const bufferLength = analyser.frequencyBinCount
-        const dataArray = new Uint8Array(bufferLength)
-
-        useRafFn(() => {
-            analyser.getByteFrequencyData(dataArray)
-            const sum = dataArray.reduce((a, b) => a + b, 0)
-            const average = sum / bufferLength
-            microphoneVolume.value = average / 255 // Normalize to 0-1 range
-        })
-    }
-
     return {
         initializeAudio,
         handleSignalingMessage,
         processPlayers,
+        getPeerConnections: () => peerConnections.value,
         cleanup,
     }
 }

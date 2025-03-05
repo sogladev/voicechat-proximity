@@ -2,7 +2,7 @@
 import { useDevicesList } from '@vueuse/core'
 
 const hasPermission = ref(false)
-const micStream = ref<MediaStream | null>(null)
+const microphoneStream = ref<MediaStream | null>(null)
 const selectedMicrophoneId = ref('')
 
 // Get the list of available audio input devices.
@@ -17,7 +17,7 @@ const handleRequestPermission = async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: selectedMicrophoneId.value || undefined } })
     hasPermission.value = true
-    micStream.value = stream
+    microphoneStream.value = stream
 
     // Set the default microphone
     const audioTracks = stream.getAudioTracks()
@@ -34,8 +34,8 @@ const handleRequestPermission = async () => {
 // Function to mute/unmute
 const isMuted = ref(false)
 const toggleMute = () => {
-  if (!micStream.value) return
-  micStream.value.getAudioTracks().forEach(track => {
+  if (!microphoneStream.value) return
+  microphoneStream.value.getAudioTracks().forEach(track => {
     track.enabled = !track.enabled
   })
   isMuted.value = !isMuted.value
@@ -70,9 +70,9 @@ const setVolume = (newVolume: number) => {
  * @returns {number} The maximum frequency value representing the peak audio level.
  */
 const analyzeAudioLevel = () => {
-  if (!micStream.value) return 0
+  if (!microphoneStream.value) return 0
   const analyser = audioContext.createAnalyser()
-  const source = audioContext.createMediaStreamSource(micStream.value)
+  const source = audioContext.createMediaStreamSource(microphoneStream.value)
   source.connect(analyser)
   analyser.fftSize = 256
   const dataArray = new Uint8Array(analyser.frequencyBinCount)
@@ -82,7 +82,7 @@ const analyzeAudioLevel = () => {
 
 // Expose these methods & properties so the parent can access them
 defineExpose({
-  micStream,
+  microphoneStream,
   toggleMute,
   setVolume,
   analyzeAudioLevel
