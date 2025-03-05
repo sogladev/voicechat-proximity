@@ -86,7 +86,8 @@ export function usePlayerConnection() {
           }
           case 'signaling': {
             const signalingPayload = message.payload as SignalingPayload
-            handleSignalingMessage(signalingPayload)
+            // Call signaling handler to handle the signaling message
+            signalingHandler.value(signalingPayload)
             break
           }
           case 'new-player': {
@@ -106,6 +107,16 @@ export function usePlayerConnection() {
     }
   })
 
+  // A ref to store the signaling handler
+  const signalingHandler = ref<(payload: SignalingPayload) => Promise<void> | void>(
+    (payload) => console.debug('Default signaling handler - not connected', payload)
+  )
+
+  // Function to register an external handler
+  const registerSignalingHandler = (handler: (payload: SignalingPayload) => Promise<void> | void) => {
+    signalingHandler.value = handler
+  }
+
   return {
     // Expose WebSocket controls.
     status,
@@ -118,6 +129,8 @@ export function usePlayerConnection() {
     player,
     nearbyPlayers,
     // Expose WebRTC connections (unused for now).
-    rtcConnections
+    rtcConnections,
+    // Expose signaling handler and register function.
+    registerSignalingHandler
   }
 }

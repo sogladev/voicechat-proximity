@@ -10,6 +10,7 @@ const {
     connectAs,
     player,
     nearbyPlayers,
+    registerSignalingHandler
 } = usePlayerConnection()
 
 // Use a computed prop to maintain reactivity
@@ -24,6 +25,11 @@ const { initializeAudio, handleSignalingMessage, getPeerConnections } = useWebRT
     microphoneStream
 );
 
+// Connect the signaling handler from WebRTC to the WebSocket
+onMounted(() => {
+  registerSignalingHandler(handleSignalingMessage)
+})
+
 // Add a watcher to initialize audio when the stream becomes available
 watch(microphoneStream, (newStream) => {
   if (newStream) {
@@ -34,6 +40,7 @@ watch(microphoneStream, (newStream) => {
 
 // Expose peer connections for the UI (e.g., to display volume sliders, etc.)
 const peerConnections = getPeerConnections()
+
 </script>
 
 <template>

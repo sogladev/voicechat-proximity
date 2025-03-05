@@ -227,6 +227,8 @@ export function useWebRTCVoiceManager(
     const handleSignalingMessage = async (payload: SignalingPayload) => {
         if (!player.value || payload.to !== player.value.guid) return
 
+        console.log('Handling signaling message:', payload)
+
         const fromGuid = payload.from
         switch (payload.type) {
             case 'offer': {
