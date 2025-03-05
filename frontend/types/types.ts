@@ -43,7 +43,7 @@ export interface SignalingPayload {
     data: string
 }
 
-// sent by data server
+// Sent by data server
 export interface NearbyPlayersPayload {
   player: Player;
   nearbyPlayers: Player[];
@@ -55,4 +55,14 @@ export interface MediaDeviceInfo {
   groupId: string;
   kind: string;
   label: string;
+}
+
+// Used by WebRTC for players and signaling messages **/
+export interface PeerConnectionInfo {
+    connection: RTCPeerConnection
+    audioElement?: HTMLAudioElement
+    volume: number
+    audioLevel?: number
+    connectionState: string
+    iceConnectionState: string
 }

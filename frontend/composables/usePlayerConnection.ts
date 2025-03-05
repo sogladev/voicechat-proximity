@@ -1,3 +1,19 @@
+/**
+ * Handles all the WebSocket communication. It receives player data (and other messages) from the server,
+ * sends connection and signaling messages, and updates reactive state (like current player and nearby players).
+ *
+ * @returns {Object} An object containing WebSocket controls, custom connection method, and reactive state.
+ * @property {Ref<Player>} player - Reactive state for the current player.
+ * @property {Ref<Player[]>} nearbyPlayers - Reactive state for the nearby players.
+ * @property {Ref<any>} rtcConnections - Reactive state for WebRTC connections (unused for now).
+ * @property {Ref<string>} status - Reactive state for the WebSocket connection status.
+ * @property {Ref<string>} data - Reactive state for the WebSocket received data.
+ * @property {Function} send - Function to send data through the WebSocket.
+ * @property {Function} open - Function to open the WebSocket connection.
+ * @property {Function} close - Function to close the WebSocket connection.
+ * @property {Function} connectAs - Function to connect as a player by sending a "connect" message.
+ */
+
 import type {
   WebSocketMessage,
   ConnectPayload,

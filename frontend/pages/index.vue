@@ -3,15 +3,19 @@ import MicrophoneControls from '~/components/MicrophoneControls.vue'
 
 const microphoneControls = ref<typeof MicrophoneControls>()
 
-// Updated via WebSocket
-import { usePlayerConnection } from '@/composables/usePlayerConnection'
-
+// WebSocket connection for player data & signaling messages.
 const {
     connectAs,
     player,
     nearbyPlayers,
     status
 } = usePlayerConnection()
+
+// WebRTC Manager for establishing peer connections.
+// const { handleSignalingMessage, getPeerConnections } = useWebRTCManager()
+
+// Expose peer connections for the UI (e.g., to display volume sliders, etc.)
+// const peerConnections = getPeerConnections()
 </script>
 
 <template>
