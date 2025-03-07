@@ -114,8 +114,8 @@ defineExpose({
     <!-- Show mute button and volume control -->
     <div class="flex flex-col">
       <div class="flex">
-        <MicrophoneControlsMuteButton :disabled="!hasPermission" :is-muted="isMuted" @toggle-mute="toggleMute" />
-        <MicrophoneControlsVolumeSlider :disabled="!hasPermission" :volume="volume" @set-volume="setVolume" />
+        <!-- <MicrophoneControlsMuteButton :disabled="!hasPermission" :is-muted="isMuted" @toggle-mute="toggleMute" /> -->
+        <!-- <MicrophoneControlsVolumeSlider :disabled="!hasPermission" :volume="volume" @set-volume="setVolume" /> -->
         <!-- <input class="w-full accent-primary" type="range" min="0" max="1" step="0.01" v-model="volume" @input="setVolume(volume)" /> -->
       </div>
       <!-- <div class="mx-2 w-32 "> -->

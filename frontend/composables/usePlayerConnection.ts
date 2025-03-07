@@ -5,7 +5,6 @@
  * @returns {Object} An object containing WebSocket controls, custom connection method, and reactive state.
  * @property {Ref<Player>} player - Reactive state for the current player.
  * @property {Ref<Player[]>} nearbyPlayers - Reactive state for the nearby players.
- * @property {Ref<any>} rtcConnections - Reactive state for WebRTC connections (unused for now).
  * @property {Ref<string>} status - Reactive state for the WebSocket connection status.
  * @property {Ref<string>} data - Reactive state for the WebSocket received data.
  * @property {Function} send - Function to send data through the WebSocket.
@@ -49,14 +48,6 @@ export function usePlayerConnection() {
   // Reactive state for the current player and nearby players.
   const player = ref<Player>(defaultPlayer)
   const nearbyPlayers = ref<Player[]>([])
-  const rtcConnections = ref<any>(null) // Unused for now
-
-  // Optional: A placeholder function to handle signaling messages.
-  const handleSignalingMessage = (payload: SignalingPayload) => {
-    console.debug('Handling signaling message:', payload)
-    // todo: update RTC connections
-    // for example: rtcConnections.value = getPeerConnections();
-  }
 
   // Connect as a player by sending a "connect" message.
   const connectAs = (id: number, secret: string = 'player-secret') => {
@@ -128,8 +119,6 @@ export function usePlayerConnection() {
     connectAs,
     player,
     nearbyPlayers,
-    // Expose WebRTC connections (unused for now).
-    rtcConnections,
     // Expose signaling handler and register function.
     registerSignalingHandler
   }

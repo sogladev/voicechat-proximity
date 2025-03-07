@@ -1,8 +1,4 @@
 <script setup lang="ts">
-import MicrophoneControls from '~/components/MicrophoneControls.vue'
-
-const microphoneControls = ref<InstanceType<typeof MicrophoneControls>>()
-
 // WebSocket connection for player data & signaling messages.
 const {
     send,
@@ -13,21 +9,28 @@ const {
     registerSignalingHandler
 } = usePlayerConnection()
 
-// Use a computed prop to maintain reactivity
-const microphoneStream = computed(() => microphoneControls.value?.microphoneStream || null)
+// Audio Manager
+const audioManager = useAudioManager()
 
 // WebRTC Manager for establishing peer connections.
 const {
-    initializeAudio,
     handleSignalingMessage,
     getPeerConnections,
+    manageNearbyPlayersConnections,
 } = useWebRTCVoiceManager(
     player,
     nearbyPlayers,
     (message: string) => send(message),
     status,
-    microphoneStream
+    audioManager
 );
+
+// Watch for changes in nearby players to manage connections
+watch(nearbyPlayers, (nearbyPlayers) => {
+    if (nearbyPlayers) {
+        manageNearbyPlayersConnections()
+    }
+})
 
 // Make peer connections reactive so the UI can use it
 const peerConnectionsMap = computed(() => {
@@ -39,22 +42,10 @@ const getConnectionInfoForPlayer = (playerId: number) => {
     return peerConnectionsMap.value.get(playerId) || null
 }
 
-const microphoneVolume = computed(() => {
-    return microphoneControls.value?.analyzeAudioLevel()
-})
-
 // Connect the signaling handler from WebRTC to the WebSocket
 onMounted(() => {
     registerSignalingHandler(handleSignalingMessage)
 })
-
-// Add a watcher to initialize audio when the stream becomes available
-watch(microphoneStream, (newStream) => {
-    if (newStream) {
-        console.log('Microphone stream is ready, initializing WebRTC audio')
-        initializeAudio()
-    }
-}, { immediate: true })
 </script>
 
 <template>
@@ -72,10 +63,8 @@ watch(microphoneStream, (newStream) => {
         <div class="flex flex-col text-sm">
             <div class="flex flex-col">
                 <div class="text-lg font-semibold">Microphone</div>
-                <MicrophoneControls ref="microphoneControls" />
+                <!-- <MicrophoneControls ref="microphoneControls" /> -->
             </div>
-        <AudioActivityIndicator :level="microphoneVolume" size="lg" showValue />
-        {{  microphoneVolume }}
 
         </div>
         <!-- Right side: Server info -->
