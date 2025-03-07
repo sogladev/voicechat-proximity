@@ -104,7 +104,7 @@ defineExpose({
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
-            <SelectItem v-for="mic in microphoneOptions" :key="mic.deviceId" :value="mic.deviceId">
+            <SelectItem v-for="mic in microphoneOptions" :key="mic.deviceId" :value="mic.deviceId || 'unknown'">
               {{ mic.label || 'Unknown Device' }}
             </SelectItem>
           </SelectGroup>
@@ -123,7 +123,6 @@ defineExpose({
       <!-- </div> -->
       <!-- Subtext -->
       <p class="mt-2 text-xs text-muted-foreground">Current volume: {{ (volume * 100).toFixed(0) }}%</p>
-
     </div>
   </div>
 </template>

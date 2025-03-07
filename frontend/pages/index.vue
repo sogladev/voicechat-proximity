@@ -17,7 +17,11 @@ const {
 const microphoneStream = computed(() => microphoneControls.value?.microphoneStream || null)
 
 // WebRTC Manager for establishing peer connections.
-const { initializeAudio, handleSignalingMessage, getPeerConnections } = useWebRTCVoiceManager(
+const {
+    initializeAudio,
+    handleSignalingMessage,
+    getPeerConnections,
+} = useWebRTCVoiceManager(
     player,
     nearbyPlayers,
     (message: string) => send(message),
@@ -25,22 +29,32 @@ const { initializeAudio, handleSignalingMessage, getPeerConnections } = useWebRT
     microphoneStream
 );
 
+// Make peer connections reactive so the UI can use it
+const peerConnectionsMap = computed(() => {
+    return getPeerConnections()
+})
+
+// Helper function to find connection info for a player
+const getConnectionInfoForPlayer = (playerId: number) => {
+    return peerConnectionsMap.value.get(playerId) || null
+}
+
+const microphoneVolume = computed(() => {
+    return microphoneControls.value?.analyzeAudioLevel()
+})
+
 // Connect the signaling handler from WebRTC to the WebSocket
 onMounted(() => {
-  registerSignalingHandler(handleSignalingMessage)
+    registerSignalingHandler(handleSignalingMessage)
 })
 
 // Add a watcher to initialize audio when the stream becomes available
 watch(microphoneStream, (newStream) => {
-  if (newStream) {
-    console.log('Microphone stream is ready, initializing WebRTC audio')
-    initializeAudio()
-  }
+    if (newStream) {
+        console.log('Microphone stream is ready, initializing WebRTC audio')
+        initializeAudio()
+    }
 }, { immediate: true })
-
-// Expose peer connections for the UI (e.g., to display volume sliders, etc.)
-const peerConnections = getPeerConnections()
-
 </script>
 
 <template>
@@ -50,6 +64,7 @@ const peerConnections = getPeerConnections()
             <div class="text-lg font-semibold">Player</div>
             <div class="flex gap-4">
                 <CurrentPlayerStatus :player="player" :status="status.toString()" />
+                />
             </div>
         </div>
 
@@ -59,6 +74,9 @@ const peerConnections = getPeerConnections()
                 <div class="text-lg font-semibold">Microphone</div>
                 <MicrophoneControls ref="microphoneControls" />
             </div>
+        <AudioActivityIndicator :level="microphoneVolume" size="lg" showValue />
+        {{  microphoneVolume }}
+
         </div>
         <!-- Right side: Server info -->
         <div class="flex flex-col text-sm">
@@ -76,9 +94,10 @@ const peerConnections = getPeerConnections()
         </div>
     </header>
     <div class="flex flex-col gap-4 p-1 md:p-2 lg:p-4">
-        <NearbyPlayers :players="nearbyPlayers" />
+        <NearbyPlayers :players="nearbyPlayers" :connection-info-getter="getConnectionInfoForPlayer" />
+
         <Separator class="my-4" label="Debug" />
-        <Card class="max-w-md mx-auto">
+        <Card class="max-w mx-auto">
             <CardHeader>
                 <CardTitle>Connect as a Player - Debug</CardTitle>
                 <CardDescription>Select a player to connect as</CardDescription>

@@ -83,6 +83,7 @@ export function useWebRTCVoiceManager(
 
         // Add connection state change listeners
         connection.onconnectionstatechange = () => {
+            console.log(`Connection state changed for peer ${targetGuid}: ${connection.connectionState}`)
             const info = peerConnections.value.get(targetGuid);
             if (info) {
                 peerConnections.value.set(targetGuid, {
@@ -103,7 +104,22 @@ export function useWebRTCVoiceManager(
 
         // Listen for remote tracks and create an audio element for playback.
         connection.ontrack = event => {
-            if (!audioContext.value) return
+            if (!audioContext.value) {
+                console.error('No audio context available')
+                return
+            }
+
+            // Make sure the audio context is running
+            if (audioContext.value.state !== 'running') {
+                console.log('Audio context not running, attempting to resume...')
+                audioContext.value.resume().then(() => {
+                    console.log('AudioContext resumed successfully')
+                }).catch(err => {
+                    console.error('Failed to resume AudioContext:', err)
+                })
+            }
+
+            console.log(`Received audio track from peer: ${targetGuid}`, event.streams)
 
             // Extract the remote stream
             const remoteStream = event.streams[0]
@@ -119,17 +135,46 @@ export function useWebRTCVoiceManager(
             sourceNode.connect(gainNode)
             gainNode.connect(audioContext.value.destination)
 
-            // Save the gainNode in the peerConnections mapping
-            const info = peerConnections.value.get(targetGuid) || {
-                connection: connection,
-                volume: 1,
+            console.log(`Audio connection established with player ${targetGuid}`)
+
+            // Get any existing connection info
+            const existingInfo = peerConnections.value.get(targetGuid)
+
+            // Update with new info including the gainNode
+            peerConnections.value.set(targetGuid, {
+                connection: existingInfo ? existingInfo.connection : connection,
+                volume: existingInfo?.volume || 1,
                 connectionState: connection.connectionState,
-                iceConnectionState: connection.iceConnectionState ,
+                iceConnectionState: connection.iceConnectionState,
                 gainNode: gainNode,
-                userVolumeFactor: 1
-            }
-            peerConnections.value.set(targetGuid, info)
+                userVolumeFactor: existingInfo?.userVolumeFactor || 1
+            })
+
+            console.log(`Updated connection info for ${targetGuid} with gainNode`, peerConnections.value.get(targetGuid))
+
+            // In ontrack handler
+            console.log('Remote stream tracks:', remoteStream.getTracks().map(t => ({
+                kind: t.kind,
+                enabled: t.enabled,
+                muted: t.muted,
+                readyState: t.readyState
+            })))
+
+            // After connecting nodes
+            console.log('Audio nodes connected:',
+                'sourceNode →', sourceNode,
+                'gainNode →', gainNode,
+                'destination →', audioContext.value.destination
+            )
         }
+
+        const tracks = externalStream.value.getAudioTracks()
+        console.log('Local audio tracks to add:', tracks.map(t => ({
+            kind: t.kind,
+            enabled: t.enabled,
+            muted: t.muted,
+            readyState: t.readyState
+        })))
 
         // Add local audio tracks to the connection.
         if (externalStream.value) {
