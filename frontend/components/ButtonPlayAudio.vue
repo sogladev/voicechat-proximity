@@ -16,7 +16,7 @@ function onClick() {
   if (!track) return;
 
   track.currentTime = 0;
-  track.volume = props.volume ?? 1.0;
+  track.volume = props.volume ?? 0.5;
 
   track.addEventListener(
     'ended',
