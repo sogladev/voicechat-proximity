@@ -1,8 +1,10 @@
 package model
 
 const (
-	// Add extra buffer to the max distance to avoid frequent disconnects/reconnects
-	MAX_DISCONNECT_DISTANCE = VISIBILITY_DISTANCE_NORMAL * 1.5
+	// Distance threshold to initiate a connection.
+	CONNECT_DISTANCE = VISIBILITY_DISTANCE_NORMAL
+	// Add extra buffer to the max distance to avoid flickering
+	DISCONNECT_DISTANCE = VISIBILITY_DISTANCE_NORMAL * 1.5
 	// Constants from MMO
 	CONTACT_DISTANCE             = 0.5
 	INTERACTION_DISTANCE         = 5.5

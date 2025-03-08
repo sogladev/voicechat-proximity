@@ -187,7 +187,7 @@ func broadcastPlayerUpdates() {
 				// Ignore z distance
 				// dx := p.Position.X - player.Position.X
 				// dy := p.Position.Y - player.Position.Y
-				// if dx*dx+dy*dy <= (model.MAX_DISCONNECT_DISTANCE * model.MAX_DISCONNECT_DISTANCE) {
+				// if dx*dx+dy*dy <= (model.DISCONNECT_DISTANCE * model.DISCONNECT_DISTANCE) {
 				nearbyPlayers = append(nearbyPlayers, p)
 				// }
 			}

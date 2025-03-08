@@ -94,12 +94,12 @@ func main() {
 			p2.Player.Position.X*p2.Player.Position.X +
 				p2.Player.Position.Y*p2.Player.Position.Y)
 
-		if distanceFromOrigin > model.MAX_DISCONNECT_DISTANCE {
+		if distanceFromOrigin > model.DISCONNECT_DISTANCE {
 			// Reverse direction when hitting boundary
 			p2.MovementAngle += math.Pi
 
 			// Scale back position to be exactly at boundary
-			scale := model.MAX_DISCONNECT_DISTANCE / distanceFromOrigin
+			scale := model.DISCONNECT_DISTANCE / distanceFromOrigin
 			p2.Player.Position.X *= scale
 			p2.Player.Position.Y *= scale
 		}
