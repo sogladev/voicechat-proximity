@@ -14,10 +14,12 @@ export const useAudioStore = defineStore('audio', () => {
 
   const globalVolume = useStorage('globalVolume', 1.0);
 
+  const microphoneStream = ref<MediaStream | null>(null);
+
   async function initMediaDevices() {
     try {
       // Request microphone permissions
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      microphoneStream.value = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       watchEffect(() => {
         console.debug('Updated audioInputs:', audioInputs.value);
@@ -34,6 +36,10 @@ export const useAudioStore = defineStore('audio', () => {
     }
   }
 
+  function getMicrophoneTrack(): MediaStreamTrack | null {
+    return microphoneStream.value ? microphoneStream.value.getAudioTracks()[0] : null;
+  }
+
   return {
     audioInputs,
     audioOutputs,
@@ -46,5 +52,6 @@ export const useAudioStore = defineStore('audio', () => {
     sound3DModel,
     speaker,
     globalVolume,
+    getMicrophoneTrack
   };
 });

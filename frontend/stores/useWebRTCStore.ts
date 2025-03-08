@@ -17,6 +17,7 @@ export const useWebRTCStore = defineStore("webrtc", () => {
     const lastPayload = ref<NearbyPlayersPayload | null>(null);
 
     const socketStore = useSocketStore();
+    const audioStore = useAudioStore();
 
     // Create typed event bus for signaling messages
     const positionEventBus = useEventBus<WebSocketMessage<NearbyPlayersPayload>>('position');
@@ -88,6 +89,13 @@ export const useWebRTCStore = defineStore("webrtc", () => {
         const connection = new RTCPeerConnection({
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
         });
+
+        // Add the audio track from the microphone to the peer connection.
+        const microphoneTrack = audioStore.getMicrophoneTrack();
+        if (microphoneTrack) {
+            connection.addTrack(microphoneTrack);
+            console.debug("Added microphone track to peer connection for:", target.guid);
+        }
 
         // Set up ICE candidate handling.
         connection.onicecandidate = (event) => {
