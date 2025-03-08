@@ -11,9 +11,8 @@ import (
 )
 
 var (
-	allMapData      = types.AllMapData{}
-	allMapDataMutex sync.RWMutex
-	// map[playerGUID]*websocket.Conn
+	allMapData       = types.AllMapData{}
+	allMapDataMutex  sync.RWMutex
 	connectedPlayers = make(map[int]*websocket.Conn)
 	connectedMutex   sync.RWMutex
 )
@@ -188,7 +187,7 @@ func broadcastPlayerUpdates() {
 				// Ignore z distance
 				// dx := p.Position.X - player.Position.X
 				// dy := p.Position.Y - player.Position.Y
-				// if dx*dx+dy*dy <= 100*100 { // 100 max
+				// if dx*dx+dy*dy <= (model.MAX_DISCONNECT_DISTANCE * model.MAX_DISCONNECT_DISTANCE) {
 				nearbyPlayers = append(nearbyPlayers, p)
 				// }
 			}

@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/sogladev/voice-chat-manager/internal/model"
 	"github.com/sogladev/voice-chat-manager/internal/types"
 
 	"github.com/gorilla/websocket"
@@ -58,14 +59,12 @@ func main() {
 	}
 
 	// Update positions every 100ms
-	ticker := time.NewTicker(1000 * time.Millisecond)
-	// ticker := time.NewTicker(10000 * time.Millisecond)
+	// ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(2000 * time.Millisecond)
 	defer ticker.Stop()
 
 	// Keep track of time for smooth movement
 	lastTick := time.Now()
-
-	const maxDistance = 100.0 // Maximum distance in yards
 
 	for range ticker.C {
 		now := time.Now()
@@ -95,12 +94,12 @@ func main() {
 			p2.Player.Position.X*p2.Player.Position.X +
 				p2.Player.Position.Y*p2.Player.Position.Y)
 
-		if distanceFromOrigin > maxDistance {
+		if distanceFromOrigin > model.MAX_DISCONNECT_DISTANCE {
 			// Reverse direction when hitting boundary
 			p2.MovementAngle += math.Pi
 
 			// Scale back position to be exactly at boundary
-			scale := maxDistance / distanceFromOrigin
+			scale := model.MAX_DISCONNECT_DISTANCE / distanceFromOrigin
 			p2.Player.Position.X *= scale
 			p2.Player.Position.Y *= scale
 		}
