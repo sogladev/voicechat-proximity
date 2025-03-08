@@ -21,12 +21,10 @@ const connectAsBob = () => {
 <template>
     <div class="flex gap-4 justify-center border-2 p-2">
         <Button variant="outline" @click="connectAsAlice" :disabled="status === 'OPEN'">
-            Connect as Alice
-            <span class="text-muted">guid: 8</span>
+            Connect as Alice (guid: 8)
         </Button>
         <Button variant="outline" @click="connectAsBob" :disabled="status === 'OPEN'">
-            Connect as Bob
-            <span class="text-muted">guid: 9</span>
+            Connect as Bob (guid: 9)
         </Button>
     </div>
 </template>
