@@ -1,4 +1,5 @@
 import { useStorage, useDevicesList } from '@vueuse/core';
+import type { Player } from '~/types/types';
 
 export const useAudioStore = defineStore('audio', () => {
   const echoCancellation = useStorage('echoCancellation', true);
@@ -37,11 +38,11 @@ export const useAudioStore = defineStore('audio', () => {
       speaker.value = audioOutputs.value.find(d => d.deviceId === 'default')
         || audioOutputs.value[0]
 
-        // Create an AudioContext for audio processing
-        if (!audioContext.value) {
-          console.debug('Creating AudioContext');
-          audioContext.value = new AudioContext();
-        }
+      // Create an AudioContext for audio processing
+      if (!audioContext.value) {
+        console.debug('Creating AudioContext');
+        audioContext.value = new AudioContext();
+      }
     } catch (error) {
       console.error('Error initializing media devices:', error);
     }
@@ -91,6 +92,13 @@ export const useAudioStore = defineStore('audio', () => {
     }
   }
 
+  function updatePeerAudio(player: Player, peer: Player) {
+    const distanceSq = calculatePlayerDistanceSq(player, peer);
+    const volume = 1.0 / (1.0 + distanceSq);
+    setPeerVolume(peer.guid, volume);
+    console.log(`Updated volume for peer ${peer.guid} to ${volume}`);
+  }
+
   return {
     audioInputs,
     audioOutputs,
@@ -107,5 +115,6 @@ export const useAudioStore = defineStore('audio', () => {
     addRemoteAudio,
     setPeerVolume,
     removeRemoteAudio,
+    updatePeerAudio,
   };
 });

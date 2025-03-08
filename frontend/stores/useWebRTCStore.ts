@@ -175,8 +175,8 @@ export const useWebRTCStore = defineStore("webrtc", () => {
     const processNearbyPlayers = (payload: NearbyPlayersPayload) => {
         selfPlayer.value = payload.player;
         // Process new nearby players list.
-        const nearbyPeers: Player[] = payload.nearbyPlayers;
-        nearbyPeers.forEach((peer) => {
+        const newPeers: Player[] = payload.nearbyPlayers;
+        newPeers.forEach((peer) => {
             const distanceSq = calculatePlayerDistanceSq(payload.player, peer);
             if (distanceSq <= (CONNECT_RANGE * CONNECT_RANGE)) {
                 // If this peer is within the connect range and not already connected, create connection.
@@ -187,10 +187,18 @@ export const useWebRTCStore = defineStore("webrtc", () => {
         });
         // Check existing connections: if a connected peer is now outside the disconnect range, remove it.
         peerConnections.value.forEach((_, guid) => {
-            const peer = nearbyPeers.find((p) => p.guid === guid);
+            const peer = newPeers.find((p) => p.guid === guid);
             // If not found in the new list or the distance exceeds the disconnect threshold, disconnect.
             if (!peer || calculatePlayerDistanceSq(payload.player, peer) > (DISCONNECT_RANGE * DISCONNECT_RANGE)) {
-                // removePeerConnection(guid);
+                removePeerConnection(guid);
+            }
+        });
+
+        // Only connected peers
+        peerConnections.value.forEach((_, guid) => {
+            const peer = newPeers.find((p) => p.guid === guid);
+            if (peer) {
+                audioStore.updatePeerAudio(payload.player, peer);
             }
         });
     };
