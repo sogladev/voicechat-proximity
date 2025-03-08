@@ -19,29 +19,39 @@ https://github.com/user-attachments/assets/fc6d6478-f0bb-406b-9fd6-b767c787fd06
 
 ### ✅ Custom WebRTC-Based Solution (This Project)
 ✔ **No external software required** (fully browser-based)
+
 ✔ **Supports mobile & desktop**
+
 ✔ **Easy for users to set up** (no client plugin needed)
+
 ✔ **Proximity-based volume scaling**
 
 ### 🔶 Mumble-Based Approach
 ✔ **Cross-platform (Windows/Linux/macOS)**
+
 ✔ **Well-established, and proven voice chat**
+
 ✖ **Requires client-side install**
+
 ✖ **Previous work depends on deprecated/archived documentation**
 
 ### ❌ Discord Proximity Chat (e.g., DiscordSRV)
 ✖ **Does NOT scale voice volume based on distance**
+
 ✖ **Can only move players between voice channels**
 
 ### ❌ Teamspeak-Based Approach
 ✖ **Requires a paid license for >30 users**
 
 ## Features
-
 ✅ **Proximity-based voice chat** (volume scales based on distance)
+
 ✅ **Supports 3D positional audio** (HRTF with Web Audio API)
+
 ✅ **WebRTC peer-to-peer connections** for low-latency communication
+
 ✅ **Server filters positional data** (players only see/hear nearby players)
+
 ✅ **Scalable state management** to limit WebRTC connections and prevent flickering
 
 ## Missing Features
