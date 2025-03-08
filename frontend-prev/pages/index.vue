@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { useWebSocket } from '@vueuse/core'
-import Minimap from '@/components/Minimap.vue'
 import type { Player, NearbyPlayersPayload, ConnectPayload, SignalingPayload, WebSocketMessage } from './types/types'
-import RtcConnectionStatus from '@/components/RtcConnectionStatus.vue'
-import { useWebRTCVoiceManager } from '@/composables/WebRTCManager'
-import NearbyPlayers from '@/components/NearbyPlayers.vue'
-import MicrophoneSelector from '@/components/MicrophoneSelector.vue'
+import { useWebRTCVoiceManager } from '../composables/WebRTCManager'
 
 const url = 'ws://localhost:22142/ws'
 const GUID_ALICE = 8
@@ -147,7 +143,7 @@ const microphoneVolumeFmt = computed(() => {
     <div class="center-container">
       <!-- Audio Controls Section -->
       <div class="audio-controls">
-        <MicrophoneSelector
+        <MicrophoneControls
           :microphones="microphones"
           :currentMicrophone="currentMicrophone"
           :stream="stream"
@@ -188,88 +184,3 @@ const microphoneVolumeFmt = computed(() => {
     </div>
   </main>
 </template>
-
-<style scoped>
-.center-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.audio-controls {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: 300px;
-  gap: 1rem;
-}
-
-.volume-indicator {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background-color: rgba(45, 45, 48, 0.8);
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.volume-label {
-  color: #eee;
-  font-size: 0.9rem;
-  width: 80px;
-}
-
-.volume-meter {
-  flex-grow: 1;
-  height: 8px;
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.volume-bar {
-  height: 100%;
-  background-color: #4CAF50;
-  transition: width 100ms ease-out;
-}
-
-.volume-value {
-  color: #eee;
-  font-size: 0.9rem;
-  width: 50px;
-  text-align: right;
-}
-
-.button-container {
-  display: flex;
-  gap: 1rem;
-}
-
-.status-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-button {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background-color: #fff;
-  cursor: pointer;
-}
-
-button:hover {
-  background-color: #f0f0f0;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-</style>

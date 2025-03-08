@@ -183,9 +183,11 @@ export function useWebRTCVoiceManager(
         if (info && info.audioElement) {
             // Use a linear fall-off (volume goes to zero at MAX_CONNECTION_DISTANCE)
             const distanceFactor = Math.max(0, 1 - distance / MAX_CONNECTION_DISTANCE)
-            info.audioElement.volume = distanceFactor
-            info.volume = distanceFactor
+            info.gainNode.gain.value = distanceFactor * (info.userVolumeFactor || 1)
+            info.volume = info.gainNode.gain.value
             peerConnections.value.set(targetGuid, info)
+            
+
         }
     }
 
