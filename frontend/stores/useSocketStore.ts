@@ -2,10 +2,10 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { useWebSocket } from '@vueuse/core'
 import { useEventBus } from '@vueuse/core'
-import type { Position, Player, WebSocketMessage, ConnectPayload, SignalingPayload, MessageType } from '@/types/types'
+import type { Position, Player, WebSocketMessage, ConnectPayload, SignalingPayload, MessageType, NearbyPlayersPayload } from '@/types/types'
 
 // Create typed event buses for different message types
-const positionEventBus = useEventBus<WebSocketMessage<Position>>('position')
+const positionEventBus = useEventBus<WebSocketMessage<NearbyPlayersPayload>>('position')
 const signalingEventBus = useEventBus<WebSocketMessage<SignalingPayload>>('signaling')
 
 export const useSocketStore = defineStore('socket', () => {
@@ -69,7 +69,7 @@ export const useSocketStore = defineStore('socket', () => {
             switch (message.type) {
                 case 'position':
                     console.debug('Received position update:', message.payload)
-                    positionEventBus.emit(message as WebSocketMessage<Position>)
+                    positionEventBus.emit(message as WebSocketMessage<NearbyPlayersPayload>)
                     break
                 case 'signaling':
                     console.debug('Received signaling message:', message.payload)
@@ -93,6 +93,6 @@ export const useSocketStore = defineStore('socket', () => {
         status,
         connectAs,
         sendMessage,
-        disconnect
+        disconnect,
     }
 })

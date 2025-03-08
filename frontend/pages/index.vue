@@ -10,6 +10,8 @@ const { audioInputs,
     sound3DModel,
     speaker } = storeToRefs(audioStore);
 
+const webrtcStore = useWebRTCStore()
+
 </script>
 
 <template>
