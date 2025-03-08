@@ -9,7 +9,7 @@ const audioUrl = ref<string | null>(null);
 const audioElement = ref<HTMLAudioElement | null>(null);
 const recordingTimeout = ref<number | null>(null);
 
-const RECORDING_LIMIT_IN_MILLISECONDS = 1000
+const RECORDING_LIMIT_IN_MILLISECONDS = 2000
 
 const startRecording = async () => {
     try {
