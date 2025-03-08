@@ -108,3 +108,10 @@ bun run dev
 - The **MMO server automatically connects** and transmits player positional data.
 - **Player identification is based on GUID** (default setup supports GUIDs `8` and `9`). Adjust as needed.
 - Players nearby each other can **hear each other** with **real-time proximity-based voice scaling**.
+
+### Demo commands
+https://salford.figshare.com/articles/media/Master_speech_audio_file_100_HARVARD_corpus_sentences/9988607?file=18017723
+
+```
+./chrome --use-fake-device-for-media-stream --use-file-for-fake-audio-capture=$HOME/Downloads/harvard_speech.wav
+```
