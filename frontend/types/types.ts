@@ -16,15 +16,7 @@ export interface Player {
   mapId: number;
 }
 
-// SignalingMessage is used to send signaling messages between players
-// export interface SignalingMessage {
-//   type: string; // e.g., "new-player", "offer", "answer", "candidate", "join"
-//   from: number;
-//   to: string;
-//   data: string;
-// }
-
-export type MessageType = 'connect' | 'position' | 'signaling' | 'new-player' | 'player-left'
+export type MessageType = 'connect' | 'position' | 'signaling' // | 'new-player' | 'player-left'
 
 export interface WebSocketMessage<T = unknown> {
     type: MessageType
@@ -43,23 +35,7 @@ export interface SignalingPayload {
     data: string
 }
 
-// Sent by data server
 export interface NearbyPlayersPayload {
   player: Player;
   nearbyPlayers: Player[];
-}
-
-// Add this to your existing types.ts file
-export interface MediaDeviceInfo {
-  deviceId: string;
-  groupId: string;
-  kind: string;
-  label: string;
-}
-
-// Used by WebRTC for players and signaling messages **/
-export interface PeerConnectionInfo {
-    connection: RTCPeerConnection
-    connectionState: string
-    iceConnectionState: string
 }

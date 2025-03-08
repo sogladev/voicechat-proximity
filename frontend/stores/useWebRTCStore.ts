@@ -1,10 +1,5 @@
-import type { NearbyPlayersPayload, Player, Position, SignalingPayload, WebSocketMessage } from "@/types/types";
-
-// Define thresholds and limits.
-// const CONNECT_RANGE = 75; // Distance threshold to initiate a connection.
-const CONNECT_RANGE = 120; // Distance threshold to initiate a connection.
-const DISCONNECT_RANGE = 120; // Decided server-side, defined for safety. Slightly larger threshold to avoid flickering.
-const MAX_PEERS = 20; // Maximum active connections.
+import type { NearbyPlayersPayload, Player, SignalingPayload, WebSocketMessage } from "@/types/types";
+import { CONNECT_DISTANCE, DISCONNECT_DISTANCE, MAX_PEERS } from "@/model/constants";
 
 export const useWebRTCStore = defineStore("webrtc", () => {
     // Reactive state: a Map of active RTCPeerConnections, keyed by peer GUID.
@@ -79,10 +74,9 @@ export const useWebRTCStore = defineStore("webrtc", () => {
             console.warn("Maximum peer limit reached. Skipping new connection for", target.guid);
             return;
         }
-        if (peerConnections.value.has(target.guid)) {
-            // Already connected.
-            return;
-        }
+
+        if (peerConnections.value.has(target.guid)) return; // Already connected.
+
         console.debug("Creating new peer connection for:", target.guid);
         const connection = new RTCPeerConnection({
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -178,7 +172,7 @@ export const useWebRTCStore = defineStore("webrtc", () => {
         const newPeers: Player[] = payload.nearbyPlayers;
         newPeers.forEach((peer) => {
             const distanceSq = calculatePlayerDistanceSq(payload.player, peer);
-            if (distanceSq <= (CONNECT_RANGE * CONNECT_RANGE)) {
+            if (distanceSq <= (CONNECT_DISTANCE * CONNECT_DISTANCE)) {
                 // If this peer is within the connect range and not already connected, create connection.
                 if (!peerConnections.value.has(peer.guid)) {
                     createPeerConnection(peer);
@@ -189,7 +183,7 @@ export const useWebRTCStore = defineStore("webrtc", () => {
         peerConnections.value.forEach((_, guid) => {
             const peer = newPeers.find((p) => p.guid === guid);
             // If not found in the new list or the distance exceeds the disconnect threshold, disconnect.
-            if (!peer || calculatePlayerDistanceSq(payload.player, peer) > (DISCONNECT_RANGE * DISCONNECT_RANGE)) {
+            if (!peer || calculatePlayerDistanceSq(payload.player, peer) > (DISCONNECT_DISTANCE * DISCONNECT_DISTANCE)) {
                 removePeerConnection(guid);
             }
         });
@@ -207,8 +201,7 @@ export const useWebRTCStore = defineStore("webrtc", () => {
     const throttledProcessNearbyPlayers = useThrottleFn(processNearbyPlayers, 500);
 
     /**
-     * This function is called by external components (or the SocketStore)
-     * when a new NearbyPlayersPayload is received.
+     * This function is called when a new NearbyPlayersPayload is received.
      */
     function updateNearbyPlayers(payload: NearbyPlayersPayload): void {
         lastPayload.value = payload;
