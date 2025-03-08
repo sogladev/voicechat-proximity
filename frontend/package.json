@@ -12,11 +12,13 @@
   "dependencies": {
     "@nuxt/icon": "1.10.3",
     "@nuxtjs/tailwindcss": "^6.13.1",
+    "@pinia/nuxt": "0.10.1",
     "@vueuse/nuxt": "12.7.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-vue-next": "^0.477.0",
     "nuxt": "^3.15.4",
+    "pinia": "^3.0.1",
     "reka-ui": "^2.0.2",
     "shadcn-nuxt": "1.0.2",
     "tailwind-merge": "^3.0.2",

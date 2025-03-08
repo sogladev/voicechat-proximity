@@ -3,10 +3,21 @@ export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   ssr: false, // Render as SPA
   ignore: [
-    process.env.VITE_ENVIROMENT == "production" ? 'pages/debug/**' : ''
+    process.env.VITE_ENVIROMENT === "production" ? 'pages/debug/**' : ''
   ],
+  imports: {
+    dirs: [
+      'stores',
+    ],
+  },
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss', 'shadcn-nuxt', '@vueuse/nuxt', '@nuxt/icon', '@nuxtjs/color-mode'
+  modules: [
+    '@nuxtjs/tailwindcss',
+    'shadcn-nuxt',
+    '@vueuse/nuxt',
+    '@nuxt/icon',
+    '@nuxtjs/color-mode',
+    '@pinia/nuxt'
   ],
   colorMode: {
     preference: 'dark',
