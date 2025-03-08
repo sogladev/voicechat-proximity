@@ -16,6 +16,11 @@ export const useAudioStore = defineStore('audio', () => {
 
   const microphoneStream = ref<MediaStream | null>(null);
 
+  // Audio context (only created once)
+  const audioContext = ref<AudioContext | null>(null);
+  // Per-peer volume control
+  const gainNodes = ref(new Map<number, GainNode>());
+
   async function initMediaDevices() {
     try {
       // Request microphone permissions
@@ -31,13 +36,59 @@ export const useAudioStore = defineStore('audio', () => {
         || audioInputs.value[0]
       speaker.value = audioOutputs.value.find(d => d.deviceId === 'default')
         || audioOutputs.value[0]
+
+        // Create an AudioContext for audio processing
+        if (!audioContext.value) {
+          console.debug('Creating AudioContext');
+          audioContext.value = new AudioContext();
+        }
     } catch (error) {
       console.error('Error initializing media devices:', error);
     }
   }
 
-  function getMicrophoneTrack(): MediaStreamTrack | null {
-    return microphoneStream.value ? microphoneStream.value.getAudioTracks()[0] : null;
+  function getMicrophoneStream(): MediaStream | null {
+    if (!microphoneStream.value) {
+      console.warn('Microphone stream not initialized');
+      return null;
+    }
+    return microphoneStream.value;
+  }
+
+  function addRemoteAudio(peerId: number, stream: MediaStream) {
+    if (!audioContext.value) {
+      console.warn("AudioContext not initialized");
+      return;
+    }
+
+    console.debug("Adding remote audio for peer:", peerId);
+
+    // Create an audio processing chain
+    const sourceNode = audioContext.value.createMediaStreamSource(stream);
+    const gainNode = audioContext.value.createGain();
+
+    sourceNode.connect(gainNode);
+    gainNode.connect(audioContext.value.destination);
+
+    // Store GainNode for per-peer volume control
+    gainNodes.value.set(peerId, gainNode);
+  }
+
+  function setPeerVolume(peerId: number, volume: number) {
+    const gainNode = gainNodes.value.get(peerId);
+    if (gainNode) {
+      gainNode.gain.value = volume;
+      console.debug(`Set volume for peer ${peerId} to ${volume}`);
+    }
+  }
+
+  function removeRemoteAudio(peerId: number) {
+    const gainNode = gainNodes.value.get(peerId);
+    if (gainNode) {
+      gainNode.disconnect();
+      gainNodes.value.delete(peerId);
+      console.debug("Removed audio processing for peer:", peerId);
+    }
   }
 
   return {
@@ -52,6 +103,9 @@ export const useAudioStore = defineStore('audio', () => {
     sound3DModel,
     speaker,
     globalVolume,
-    getMicrophoneTrack
+    getMicrophoneStream,
+    addRemoteAudio,
+    setPeerVolume,
+    removeRemoteAudio,
   };
 });

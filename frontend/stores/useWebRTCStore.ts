@@ -1,10 +1,8 @@
-import { defineStore } from "pinia";
-import { ref, watchEffect } from "vue";
-import { useThrottleFn } from "@vueuse/core";
 import type { NearbyPlayersPayload, Player, Position, SignalingPayload, WebSocketMessage } from "@/types/types";
 
 // Define thresholds and limits.
-const CONNECT_RANGE = 75; // Distance threshold to initiate a connection.
+// const CONNECT_RANGE = 75; // Distance threshold to initiate a connection.
+const CONNECT_RANGE = 120; // Distance threshold to initiate a connection.
 const DISCONNECT_RANGE = 120; // Decided server-side, defined for safety. Slightly larger threshold to avoid flickering.
 const MAX_PEERS = 20; // Maximum active connections.
 
@@ -90,12 +88,14 @@ export const useWebRTCStore = defineStore("webrtc", () => {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
         });
 
-        // Add the audio track from the microphone to the peer connection.
-        const microphoneTrack = audioStore.getMicrophoneTrack();
-        if (microphoneTrack) {
-            connection.addTrack(microphoneTrack);
-            console.debug("Added microphone track to peer connection for:", target.guid);
+        const localStream = audioStore.getMicrophoneStream();
+        if (!localStream) {
+            console.warn("Microphone stream not available for peer connection to", target.guid);
+            return;
         }
+        localStream.getAudioTracks().forEach(track => {
+            connection.addTrack(track, localStream);
+        });
 
         // Set up ICE candidate handling.
         connection.onicecandidate = (event) => {
@@ -111,12 +111,24 @@ export const useWebRTCStore = defineStore("webrtc", () => {
                     }
                 };
                 socketStore.sendMessage(message);
-                console.debug("Sending ICE candidate for peer", target.guid, event.candidate);
+                // console.debug("Sending ICE candidate for peer", target.guid, event.candidate);
             }
         };
 
-        // Set up additional event handlers (e.g., ontrack) as needed.
-        // connection.ontrack = event => { ... };
+        // Handle incoming remote tracks.
+        connection.ontrack = (event) => {
+            console.debug("Received remote track from peer", target.guid, event);
+            console.log({ event });
+            const remoteStream = event.streams[0];
+
+            if (remoteStream) {
+                // Delegate to useAudioStore to handle audio routing
+                audioStore.addRemoteAudio(target.guid, remoteStream);
+            }
+            else {
+                console.warn("Received empty remote stream from peer", target.guid);
+            }
+        };
 
         // Save connection in our Map.
         peerConnections.value.set(target.guid, connection);
@@ -151,6 +163,7 @@ export const useWebRTCStore = defineStore("webrtc", () => {
         if (connection) {
             connection.close();
             peerConnections.value.delete(peerGuid);
+            audioStore.removeRemoteAudio(peerGuid);
             console.debug("Closed connection for peer", peerGuid);
         }
     }
@@ -168,9 +181,9 @@ export const useWebRTCStore = defineStore("webrtc", () => {
             const distanceSq = calculatePlayerDistanceSq(payload.player, peer);
             if (distanceSq <= (CONNECT_RANGE * CONNECT_RANGE)) {
                 // If this peer is within the connect range and not already connected, create connection.
-                if (!peerConnections.value.has(peer.guid)) {
-                    createPeerConnection(peer);
-                }
+                // if (!peerConnections.value.has(peer.guid)) {
+                createPeerConnection(peer);
+                // }
             }
         });
         // Check existing connections: if a connected peer is now outside the disconnect range, remove it.
@@ -178,7 +191,7 @@ export const useWebRTCStore = defineStore("webrtc", () => {
             const peer = newPeers.find((p) => p.guid === guid);
             // If not found in the new list or the distance exceeds the disconnect threshold, disconnect.
             if (!peer || calculatePlayerDistanceSq(payload.player, peer) > (DISCONNECT_RANGE * DISCONNECT_RANGE)) {
-                removePeerConnection(guid);
+                // removePeerConnection(guid);
             }
         });
     };

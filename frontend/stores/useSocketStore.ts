@@ -72,7 +72,7 @@ export const useSocketStore = defineStore('socket', () => {
                     positionEventBus.emit(message as WebSocketMessage<NearbyPlayersPayload>)
                     break
                 case 'signaling':
-                    console.debug('Received signaling message:', message.payload)
+                    // console.debug('Received signaling message:', message.payload)
                     signalingEventBus.emit(message as WebSocketMessage<SignalingPayload>)
                     break
                 default:
