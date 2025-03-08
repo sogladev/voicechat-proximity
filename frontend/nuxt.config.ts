@@ -9,6 +9,7 @@ export default defineNuxtConfig({
     dirs: [
       'stores',
       'lib',
+      'model',
     ],
   },
   devtools: { enabled: true },

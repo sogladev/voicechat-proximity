@@ -1,3 +1,4 @@
+// Define constants from MMO
 export const CONTACT_DISTANCE = 0.5;
 export const INTERACTION_DISTANCE = 5.5;
 export const ATTACK_DISTANCE = 5.0;
@@ -19,3 +20,9 @@ export const DEFAULT_VISIBILITY_DISTANCE = 100.0;
 export const DEFAULT_VISIBILITY_INSTANCE = 170.0;
 export const VISIBILITY_DIST_WINTERGRASP = 175.0;
 export const DEFAULT_VISIBILITY_BGARENAS = 250.0;
+// Define thresholds and limits.
+// Distance threshold to initiate a connection.
+export const CONNECT_DISTANCE = VISIBILITY_DISTANCE_NORMAL;
+// Decided server-side, defined for safety. Slightly larger threshold to avoid flickering.
+export const DISCONNECT_DISTANCE = VISIBILITY_DISTANCE_NORMAL * 1.5;
+export const MAX_PEERS = 20; // Maximum active connections.

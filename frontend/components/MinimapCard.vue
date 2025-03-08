@@ -1,10 +1,6 @@
 <script setup lang="ts">
-import { ref, watchEffect } from 'vue'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
-import { DEFAULT_VISIBILITY_DISTANCE } from '@/model/constants'
-import type { NearbyPlayersPayload, Player, SignalingPayload, WebSocketMessage } from '@/types/types'
+import type { NearbyPlayersPayload, Player, WebSocketMessage } from '@/types/types'
 
-// Create typed event bus for signaling messages
 const positionEventBus = useEventBus<WebSocketMessage<NearbyPlayersPayload>>('position');
 
 const nearbyPlayers = ref<Player[]>([])

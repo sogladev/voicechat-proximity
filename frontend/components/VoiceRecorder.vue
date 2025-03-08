@@ -41,7 +41,7 @@ const startRecording = async () => {
         mediaRecorder.value.start();
         isRecording.value = true;
 
-        // Set timeout to stop recording after 3 seconds
+        // Set timeout to stop recording after set amount of seconds
         recordingTimeout.value = window.setTimeout(() => {
             stopRecording();
         }, RECORDING_LIMIT_IN_MILLISECONDS);

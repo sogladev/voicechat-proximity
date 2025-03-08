@@ -1,8 +1,4 @@
 <script setup lang="ts">
-import { storeToRefs } from "pinia";
-import { useAudioStore } from "@/stores/useAudioStore";
-import { ref } from "vue";
-
 const selectedMicrophoneId = ref("");
 const audioStore = useAudioStore();
 const { audioInputs, microphone } = storeToRefs(audioStore);

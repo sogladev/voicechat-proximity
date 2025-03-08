@@ -1,8 +1,4 @@
-import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
-import { useWebSocket } from '@vueuse/core'
-import { useEventBus } from '@vueuse/core'
-import type { Position, Player, WebSocketMessage, ConnectPayload, SignalingPayload, MessageType, NearbyPlayersPayload } from '@/types/types'
+import type { WebSocketMessage, ConnectPayload, SignalingPayload, NearbyPlayersPayload } from '@/types/types'
 
 // Create typed event buses for different message types
 const positionEventBus = useEventBus<WebSocketMessage<NearbyPlayersPayload>>('position')
