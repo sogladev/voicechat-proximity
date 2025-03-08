@@ -13,6 +13,8 @@ Key components:
 - **WebRTC Voice Chat:** Direct peer-to-peer voice communication.
 - **Web Audio API Processing:** Per-peer spatial audio volume calculations.
 
+https://github.com/user-attachments/assets/fc6d6478-f0bb-406b-9fd6-b767c787fd06
+
 ## Comparison of Approaches
 
 ### ✅ Custom WebRTC-Based Solution (This Project)
