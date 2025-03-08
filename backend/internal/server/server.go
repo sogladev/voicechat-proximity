@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/sogladev/voice-chat-manager/internal/model"
 	"github.com/sogladev/voice-chat-manager/internal/types"
 )
 
@@ -185,11 +186,11 @@ func broadcastPlayerUpdates() {
 		for _, p := range playersInMap {
 			if p.GUID != playerGUID {
 				// Ignore z distance
-				// dx := p.Position.X - player.Position.X
-				// dy := p.Position.Y - player.Position.Y
-				// if dx*dx+dy*dy <= (model.DISCONNECT_DISTANCE * model.DISCONNECT_DISTANCE) {
-				nearbyPlayers = append(nearbyPlayers, p)
-				// }
+				dx := p.Position.X - player.Position.X
+				dy := p.Position.Y - player.Position.Y
+				if dx*dx+dy*dy <= (model.DISCONNECT_DISTANCE * model.DISCONNECT_DISTANCE) {
+					nearbyPlayers = append(nearbyPlayers, p)
+				}
 			}
 		}
 

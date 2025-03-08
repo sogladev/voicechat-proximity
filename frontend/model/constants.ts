@@ -21,8 +21,9 @@ export const DEFAULT_VISIBILITY_INSTANCE = 170.0;
 export const VISIBILITY_DIST_WINTERGRASP = 175.0;
 export const DEFAULT_VISIBILITY_BGARENAS = 250.0;
 // Define thresholds and limits.
+export const AUDIBLE_DISTANCE = VISIBILITY_DISTANCE_NORMAL;
 // Distance threshold to initiate a connection.
-export const CONNECT_DISTANCE = VISIBILITY_DISTANCE_NORMAL;
+export const CONNECT_DISTANCE = VISIBILITY_DISTANCE_NORMAL * 1.25;
 // Decided server-side, defined for safety. Slightly larger threshold to avoid flickering.
-export const DISCONNECT_DISTANCE = VISIBILITY_DISTANCE_NORMAL * 1.5;
+export const DISCONNECT_DISTANCE = VISIBILITY_DISTANCE_NORMAL * 1.50;
 export const MAX_PEERS = 20; // Maximum active connections.

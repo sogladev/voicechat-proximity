@@ -1,6 +1,6 @@
 import { useStorage, useDevicesList } from '@vueuse/core';
 import type { Player } from '@/types/types'
-import { CONNECT_DISTANCE } from '@/model/constants';
+import { AUDIBLE_DISTANCE } from '@/model/constants';
 
 interface GainNodes {
   userGainNode: GainNode;
@@ -200,7 +200,7 @@ export const useAudioStore = defineStore('audio', () => {
       // Set distance model properties if you want to fine-tune
       pannerNode.distanceModel = distanceModel.value.toLowerCase() as DistanceModelType;
       pannerNode.refDistance = 1;
-      pannerNode.maxDistance = CONNECT_DISTANCE;
+      pannerNode.maxDistance = AUDIBLE_DISTANCE;
     } else { // Simple 2D mode: only distance-based volume, no directional effects
       // Update the listener position too
       const listener = audioContext.value.listener;
@@ -215,7 +215,7 @@ export const useAudioStore = defineStore('audio', () => {
       // In 2D mode we can still use the built-in distance attenuation but with a simpler model
       pannerNode.distanceModel = "inverse";
       pannerNode.refDistance = 1;
-      pannerNode.maxDistance = CONNECT_DISTANCE;
+      pannerNode.maxDistance = AUDIBLE_DISTANCE;
       pannerNode.rolloffFactor = 1;
     }
   }
