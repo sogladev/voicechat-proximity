@@ -10,7 +10,8 @@ const {
 } = usePlayerConnection()
 
 // Audio Manager
-const audioManager = useAudioManager()
+const selectedMicrophoneId = ref('');
+const audioManager = useAudioManager(selectedMicrophoneId);
 
 // WebRTC Manager for establishing peer connections.
 const {
@@ -63,7 +64,7 @@ onMounted(() => {
         <div class="flex flex-col text-sm">
             <div class="flex flex-col">
                 <div class="text-lg font-semibold">Microphone</div>
-                <!-- <MicrophoneControls ref="microphoneControls" /> -->
+                <MicrophoneControls />
             </div>
 
         </div>

@@ -27,6 +27,8 @@ export function useWebRTCVoiceManager(
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
         })
 
+        console.debug(`Peer connection created with ${targetGuid}`);
+
         // Listen for ICE candidates and send them to the remote peer.
         useEventListener(connection, 'icecandidate', (event: RTCIceCandidateInit) => {
             if (event.candidate) {
@@ -48,14 +50,22 @@ export function useWebRTCVoiceManager(
         connection.onconnectionstatechange = () => {
             console.log(`Connection state changed for peer ${targetGuid}: ${connection.connectionState}`)
             const info = peerConnections.value.get(targetGuid);
-            if (info) {
+
+            if (connection.connectionState === 'disconnected' || connection.connectionState === 'failed') {
+                // Clean up the old connection
+                closePeerConnection(targetGuid)
+                // Try to establish a new connection
+                createPeerConnection(targetGuid)
+            } else if (info) {
                 peerConnections.value.set(targetGuid, {
                     ...info,
                     connectionState: connection.connectionState
                 });
             }
         };
+
         connection.oniceconnectionstatechange = () => {
+            console.log(`ICE connection state changed for peer ${targetGuid}: ${connection.iceConnectionState}`);
             const info = peerConnections.value.get(targetGuid);
             if (info) {
                 peerConnections.value.set(targetGuid, {
@@ -95,6 +105,15 @@ export function useWebRTCVoiceManager(
             iceConnectionState: connection.iceConnectionState,
         })
 
+        // add local audio tracks to the connection
+        if (audioManager.localStream.value) {
+            audioManager.localStream.value.getAudioTracks().forEach((track) => {
+                connection.addTrack(track, audioManager.localStream.value!)
+            })
+            console.debug('Added local audio tracks to connection')
+            console.debug(`Local audio tracks added to connection with ${targetGuid}`);
+        }
+
         // Create and send an offer to start the connection.
         try {
             const offer = await connection.createOffer()
@@ -109,6 +128,7 @@ export function useWebRTCVoiceManager(
                 }
             }
             sendMessage(JSON.stringify(msg))
+            console.debug(`Offer sent to peer ${targetGuid}`);
         } catch (error) {
             console.error('Error creating offer:', error)
         }
@@ -116,17 +136,33 @@ export function useWebRTCVoiceManager(
 
     // Close and clean up a peer connection.
     const closePeerConnection = (targetGuid: number) => {
+        console.debug(`Closing peer connection with ${targetGuid}`);
         const info = peerConnections.value.get(targetGuid)
         if (info) {
+            // Remove all tracks from the connection
+            const senders = info.connection.getSenders()
+            senders.forEach(sender => {
+                info.connection.removeTrack(sender)
+            })
+
             // Close the connection
             info.connection.close()
+
+            // Clean up audio context
+            audioManager.removeVoiceStream(targetGuid)
+
+            // Remove from peer connections map
             peerConnections.value.delete(targetGuid)
+
+            console.log(`Cleaned up connection for peer ${targetGuid}`)
         }
     }
 
     // Process nearby players: create, update, or close connections based on distance.
     const manageNearbyPlayersConnections = () => {
         if (!player.value || !nearbyPlayers.value) return
+
+        console.debug('Managing nearby players connections...')
 
         const selfPlayer = player.value
         const currentPeers = new Set(peerConnections.value.keys())
@@ -140,7 +176,13 @@ export function useWebRTCVoiceManager(
             if (!peerConnections.value.has(player.guid)) {
                 createPeerConnection(player.guid)
             } else {
-                // updateAudioVolume(player.guid, distance)
+                if (distance > MAX_CONNECTION_DISTANCE) {
+                    // closePeerConnection(player.guid)
+                    // currentPeers.delete(player.guid)
+                }
+                else {
+                    // updateAudioVolume(player.guid, distance)
+                }
             }
             currentPeers.delete(player.guid)
         })
@@ -160,8 +202,10 @@ export function useWebRTCVoiceManager(
         const fromGuid = payload.from
         switch (payload.type) {
             case 'offer': {
+                console.debug(`Received offer from peer ${fromGuid}`);
                 let connection: RTCPeerConnection
                 if (peerConnections.value.has(fromGuid)) {
+                    // closePeerConnection(fromGuid)
                     connection = peerConnections.value.get(fromGuid)!.connection
                 } else {
                     connection = new RTCPeerConnection({
@@ -205,12 +249,14 @@ export function useWebRTCVoiceManager(
                         }
                     }
                     sendMessage(JSON.stringify(msg))
+                    console.debug(`Answer sent to peer ${fromGuid}`);
                 } catch (error) {
                     console.error('Error handling offer:', error)
                 }
                 break
             }
             case 'answer': {
+                console.debug(`Received answer from peer ${fromGuid}`);
                 const info = peerConnections.value.get(fromGuid)
                 if (info) {
                     try {
@@ -222,6 +268,7 @@ export function useWebRTCVoiceManager(
                 break
             }
             case 'candidate': {
+                console.debug(`Received ICE candidate from peer ${fromGuid}`);
                 const info = peerConnections.value.get(fromGuid)
                 if (info) {
                     try {
