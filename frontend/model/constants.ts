@@ -1,3 +1,4 @@
+export const MAX_AUDIBLE_DISTANCE = 75.0;
 export const CONTACT_DISTANCE = 0.5;
 export const INTERACTION_DISTANCE = 5.5;
 export const ATTACK_DISTANCE = 5.0;
