@@ -1,6 +1,12 @@
 import { useStorage, useDevicesList } from '@vueuse/core';
 import type { Player } from '~/types/types';
 
+interface GainNodes {
+  userGain: GainNode;
+  proximityGain: GainNode;
+  pannerNode: PannerNode;
+}
+
 export const useAudioStore = defineStore('audio', () => {
   const echoCancellation = useStorage('echoCancellation', true);
   const noiseSuppression = useStorage('noiseSuppression', true);
@@ -20,7 +26,7 @@ export const useAudioStore = defineStore('audio', () => {
   // Audio context (only created once)
   const audioContext = ref<AudioContext | null>(null);
   // Per-peer volume control
-  const gainNodes = ref(new Map<number, GainNode>());
+  const gainNodes = ref(new Map<number, GainNodes>());
 
   async function initMediaDevices() {
     try {
@@ -65,38 +71,85 @@ export const useAudioStore = defineStore('audio', () => {
     console.debug("Adding remote audio for peer:", peerId);
 
     // Create an audio processing chain
+    // MediaStreamSource -> UserGain -> ProximityGain -> PannerNode -> Destination
     const sourceNode = audioContext.value.createMediaStreamSource(stream);
-    const gainNode = audioContext.value.createGain();
+    const userGain = audioContext.value.createGain();
+    const proximityGain = audioContext.value.createGain();
+    const pannerNode = audioContext.value.createPanner();
 
-    sourceNode.connect(gainNode);
-    gainNode.connect(audioContext.value.destination);
+    // Set initial gains
+    userGain.gain.value = mutedUsers.value.get(peerId) ? 0 : 1;
+    proximityGain.gain.value = 1.0; // Will be updated based on distance
 
-    // Store GainNode for per-peer volume control
-    gainNodes.value.set(peerId, gainNode);
-  }
+    // Configure pannerNode (3D audio settings)
+    pannerNode.panningModel = "HRTF";
+    pannerNode.distanceModel = sound3DModel.value.toLowerCase() as "inverse" | "linear" | "exponential";
+    pannerNode.maxDistance = 100;
+    pannerNode.refDistance = 1;
+    pannerNode.rolloffFactor = 1;
+    pannerNode.coneInnerAngle = 360;
+    pannerNode.coneOuterAngle = 360;
+    pannerNode.coneOuterGain = 0.3;
 
-  function setPeerVolume(peerId: number, volume: number) {
-    const gainNode = gainNodes.value.get(peerId);
-    if (gainNode) {
-      gainNode.gain.value = volume;
-      console.debug(`Set volume for peer ${peerId} to ${volume}`);
-    }
+    // Connect nodes in the processing chain
+    sourceNode.connect(userGain);
+    userGain.connect(proximityGain);
+    proximityGain.connect(pannerNode);
+    pannerNode.connect(audioContext.value.destination);
+
+    // Store nodes in a map for later updates
+    gainNodes.value.set(peerId, { userGain, proximityGain, pannerNode });
   }
 
   function removeRemoteAudio(peerId: number) {
-    const gainNode = gainNodes.value.get(peerId);
-    if (gainNode) {
-      gainNode.disconnect();
+    const peerNodes = gainNodes.value.get(peerId);
+    if (peerNodes) {
+      peerNodes.pannerNode.disconnect();
+      peerNodes.proximityGain.disconnect();
+      peerNodes.userGain.disconnect(); 
       gainNodes.value.delete(peerId);
       console.debug("Removed audio processing for peer:", peerId);
     }
   }
 
   function updatePeerAudio(player: Player, peer: Player) {
-    const distanceSq = calculatePlayerDistanceSq(player, peer);
-    const volume = 1.0 / (1.0 + distanceSq);
-    setPeerVolume(peer.guid, volume);
-    console.log(`Updated volume for peer ${peer.guid} to ${volume}`);
+    const nodes = gainNodes.value.get(peer.guid);
+    if (!nodes || !audioContext.value) return;
+
+    const { userGain, proximityGain, pannerNode } = nodes;
+
+    // Calculate distance-based volume
+    const distance = Math.sqrt(calculatePlayerDistanceSq(player, peer));
+    const maxDistance = 100;
+    console.log(distance, maxDistance);
+    let volume = Math.max(0, 1 - distance / maxDistance); // Linear volume scaling
+    volume = volume * userGain.gain.value; // Apply user volume
+
+    console.debug(`Distance to peer ${peer.guid}: ${distance}, volume: ${volume}`);
+
+    // Apply mute check
+    if (mutedUsers.value.get(peer.guid)) {
+      volume = 0;
+    }
+
+    // Apply smooth volume transition
+    proximityGain.gain.setTargetAtTime(volume, audioContext.value.currentTime, 0.1);
+
+    // Update 3D position if sound3D is enabled
+    if (sound3D.value && audioContext.value) {
+      const { x, y, z } = player.position;
+      const { o } = player.position;
+      const dx = Math.cos(o);
+      const dy = 0;
+      const dz = Math.sin(o);
+
+      pannerNode.positionX.setValueAtTime(x, audioContext.value.currentTime);
+      pannerNode.positionY.setValueAtTime(y, audioContext.value.currentTime);
+      pannerNode.positionZ.setValueAtTime(z, audioContext.value.currentTime);
+      pannerNode.orientationX.setValueAtTime(dx, audioContext.value.currentTime);
+      pannerNode.orientationY.setValueAtTime(dy, audioContext.value.currentTime);
+      pannerNode.orientationZ.setValueAtTime(dz, audioContext.value.currentTime);
+    }
   }
 
   return {
@@ -113,7 +166,6 @@ export const useAudioStore = defineStore('audio', () => {
     globalVolume,
     getMicrophoneStream,
     addRemoteAudio,
-    setPeerVolume,
     removeRemoteAudio,
     updatePeerAudio,
   };

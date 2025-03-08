@@ -1,11 +1,21 @@
-
 <script setup lang="ts">
 import { ref, watchEffect } from 'vue'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { DEFAULT_VISIBILITY_DISTANCE } from '@/model/constants'
-import type { NearbyPlayersPayload, Player } from '@/types/types'
+import type { NearbyPlayersPayload, Player, SignalingPayload, WebSocketMessage } from '@/types/types'
 
-const props = defineProps<NearbyPlayersPayload>()
+// Create typed event bus for signaling messages
+const positionEventBus = useEventBus<WebSocketMessage<NearbyPlayersPayload>>('position');
+
+const nearbyPlayers = ref<Player[]>([])
+const player = ref<Player | null>(null)
+
+// Listen for position updates
+positionEventBus.on((message) => {
+  const payload = message.payload as NearbyPlayersPayload;
+  player.value = payload.player;
+  nearbyPlayers.value = payload.nearbyPlayers;
+});
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const width = 480
@@ -51,11 +61,11 @@ const drawMinimap = () => {
 
   // Draw the visibility circle
   ctx.beginPath()
-  ctx.arc(width/ 2, height / 2, DEFAULT_VISIBILITY_DISTANCE, 0, Math.PI * 2)
+  ctx.arc(width / 2, height / 2, DEFAULT_VISIBILITY_DISTANCE, 0, Math.PI * 2)
   ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)'
   ctx.stroke()
 
-  if (!props.player) {
+  if (!player || !player.value) {
     console.error('Player not found!')
     return
   }
@@ -67,17 +77,17 @@ const drawMinimap = () => {
   ctx.fill()
 
   // Draw the orientation indicator for the current player
-  drawOrientationIndicator(ctx, width / 2, height / 2, props.player.position.o, 'blue')
+  drawOrientationIndicator(ctx, width / 2, height / 2, player.value.position.o, 'blue')
 
   // Draw player's name
   ctx.font = '12px Arial'
   ctx.fillStyle = 'blue'
-  ctx.fillText(props.player.name, width / 2, height / 2 - 10)
+  ctx.fillText(player.value.name, width / 2, height / 2 - 10)
 
   // Draw nearby players
-  props.nearbyPlayers.forEach(player => {
-    const dx = player.position.x - props.player.position.x
-    const dy = player.position.y - props.player.position.y
+  nearbyPlayers.value.forEach(p => {
+    const dx = p.position.x - player.value!.position.x
+    const dy = p.position.y - player.value!.position.y
     const distance = Math.sqrt(dx * dx + dy * dy)
 
     if (distance <= DEFAULT_VISIBILITY_DISTANCE) {
@@ -92,12 +102,12 @@ const drawMinimap = () => {
       ctx.fill()
 
       // Draw orientation indicator for the player
-      drawOrientationIndicator(ctx, x, y, player.position.o, 'red')
+      drawOrientationIndicator(ctx, x, y, p.position.o, 'red')
 
       // Draw player's name
       ctx.font = '12px Arial'
       ctx.fillStyle = 'red'
-      ctx.fillText(player.name, x, y - 15)
+      ctx.fillText(p.name, x, y - 15)
 
       // Draw distance (in yards) text
       ctx.font = '10px Arial'
@@ -108,7 +118,7 @@ const drawMinimap = () => {
 
 // Redraw the minimap whenever the player or nearbyPlayers props change.
 watchEffect(() => {
-  if (props.player && props.nearbyPlayers) {
+  if (player && nearbyPlayers) {
     drawMinimap()
   }
 })
@@ -126,5 +136,4 @@ watchEffect(() => {
   </Card>
 </template>
 
-<style scoped>
-</style>
+<style scoped></style>

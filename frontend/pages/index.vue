@@ -32,5 +32,7 @@ const webrtcStore = useWebRTCStore()
     </header>
     <div class="flex flex-col gap-4 p-1 md:p-2 lg:p-4">
         <ButtonDebugConnect />
+
+        <MinimapCard />
     </div>
 </template>
