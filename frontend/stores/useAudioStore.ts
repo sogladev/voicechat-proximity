@@ -3,7 +3,6 @@ import type { Player } from '~/types/types';
 
 interface GainNodes {
   userGain: GainNode;
-  proximityGain: GainNode;
   pannerNode: PannerNode;
 }
 
@@ -74,39 +73,35 @@ export const useAudioStore = defineStore('audio', () => {
     // MediaStreamSource -> UserGain -> ProximityGain -> PannerNode -> Destination
     const sourceNode = audioContext.value.createMediaStreamSource(stream);
     const userGain = audioContext.value.createGain();
-    const proximityGain = audioContext.value.createGain();
     const pannerNode = audioContext.value.createPanner();
 
     // Set initial gains
     userGain.gain.value = mutedUsers.value.get(peerId) ? 0 : 1;
-    proximityGain.gain.value = 1.0; // Will be updated based on distance
 
     // Configure pannerNode (3D audio settings)
     pannerNode.panningModel = "HRTF";
-    pannerNode.distanceModel = sound3DModel.value.toLowerCase() as "inverse" | "linear" | "exponential";
+    pannerNode.distanceModel = "exponential"; // "inverse" | "linear" | "exponential";
     pannerNode.maxDistance = 100;
     pannerNode.refDistance = 1;
     pannerNode.rolloffFactor = 1;
-    pannerNode.coneInnerAngle = 360;
-    pannerNode.coneOuterAngle = 360;
-    pannerNode.coneOuterGain = 0.3;
+    // pannerNode.coneInnerAngle = 360;
+    // pannerNode.coneOuterAngle = 360;
+    // pannerNode.coneOuterGain = 0.3;
 
     // Connect nodes in the processing chain
     sourceNode.connect(userGain);
-    userGain.connect(proximityGain);
-    proximityGain.connect(pannerNode);
+    userGain.connect(pannerNode);
     pannerNode.connect(audioContext.value.destination);
 
     // Store nodes in a map for later updates
-    gainNodes.value.set(peerId, { userGain, proximityGain, pannerNode });
+    gainNodes.value.set(peerId, { userGain, pannerNode });
   }
 
   function removeRemoteAudio(peerId: number) {
     const peerNodes = gainNodes.value.get(peerId);
     if (peerNodes) {
       peerNodes.pannerNode.disconnect();
-      peerNodes.proximityGain.disconnect();
-      peerNodes.userGain.disconnect(); 
+      peerNodes.userGain.disconnect();
       gainNodes.value.delete(peerId);
       console.debug("Removed audio processing for peer:", peerId);
     }
@@ -116,42 +111,100 @@ export const useAudioStore = defineStore('audio', () => {
     const nodes = gainNodes.value.get(peer.guid);
     if (!nodes || !audioContext.value) return;
 
-    const { userGain, proximityGain, pannerNode } = nodes;
-
-    // Calculate distance-based volume
-    const distance = Math.sqrt(calculatePlayerDistanceSq(player, peer));
-    const maxDistance = 100;
-    console.log(distance, maxDistance);
-    let volume = Math.max(0, 1 - distance / maxDistance); // Linear volume scaling
-    volume = volume * userGain.gain.value; // Apply user volume
-
-    console.debug(`Distance to peer ${peer.guid}: ${distance}, volume: ${volume}`);
+    const { userGain, pannerNode } = nodes;
 
     // Apply mute check
     if (mutedUsers.value.get(peer.guid)) {
-      volume = 0;
+      userGain.gain.value = 0;
+      return;
+    } else {
+      // Restore normal gain if unmuted
+      userGain.gain.value = 1 * Number(globalVolume.value);
     }
 
-    // Apply smooth volume transition
-    proximityGain.gain.setTargetAtTime(volume, audioContext.value.currentTime, 0.1);
+    // Calculate distance from player to peer (squared for efficiency)
+    const dx = player.position.x - peer.position.x;
+    const dy = player.position.y - peer.position.y;
+    const distanceSq = dx * dx + dy * dy;
+    const distance = Math.sqrt(distanceSq);
 
     // Update 3D position if sound3D is enabled
     if (sound3D.value && audioContext.value) {
-      const { x, y, z } = player.position;
-      const { o } = player.position;
-      const dx = Math.cos(o);
-      const dy = 0;
-      const dz = Math.sin(o);
+      // Position the audio listener at the player's position
+      const listener = audioContext.value.listener;
+      listener.setPosition(player.position.x, player.position.y, 0);
 
-      pannerNode.positionX.setValueAtTime(x, audioContext.value.currentTime);
-      pannerNode.positionY.setValueAtTime(y, audioContext.value.currentTime);
-      pannerNode.positionZ.setValueAtTime(z, audioContext.value.currentTime);
-      pannerNode.orientationX.setValueAtTime(dx, audioContext.value.currentTime);
-      pannerNode.orientationY.setValueAtTime(dy, audioContext.value.currentTime);
-      pannerNode.orientationZ.setValueAtTime(dz, audioContext.value.currentTime);
+      // If player has a rotation/orientation, set listener orientation
+      if (player.position.o !== undefined) {
+        const forwardX = Math.cos(player.position.o);
+        const forwardY = Math.sin(player.position.o);
+        // Listener facing direction
+        listener.setOrientation(forwardX, forwardY, 0, 0, 0, 1);
+      }
+
+      // Position the sound source at the peer's position
+      pannerNode.positionX.setValueAtTime(peer.position.x, audioContext.value.currentTime);
+      pannerNode.positionY.setValueAtTime(peer.position.y, audioContext.value.currentTime);
+      pannerNode.positionZ.setValueAtTime(0, audioContext.value.currentTime);
+
+      // Optional: If peer has orientation/direction, set sound orientation
+      if (peer.position.o !== undefined) {
+        const peerForwardX = Math.cos(peer.position.o);
+        const peerForwardY = Math.sin(peer.position.o);
+        pannerNode.orientationX.setValueAtTime(peerForwardX, audioContext.value.currentTime);
+        pannerNode.orientationY.setValueAtTime(peerForwardY, audioContext.value.currentTime);
+        pannerNode.orientationZ.setValueAtTime(0, audioContext.value.currentTime);
+      }
+
+      // Set distance model properties if you want to fine-tune
+      pannerNode.distanceModel = sound3DModel.value.toLowerCase() as DistanceModelType;
+      pannerNode.refDistance = 1;
+      pannerNode.maxDistance = 100;
+
+      // Let Web Audio API handle all the 3D audio calculations and distance attenuation
+    } else {
+      // Simple 2D mode: only distance-based volume, no directional effects
+      // We'll manually set the volume based on distance
+
+      // Calculate a volume between 0 and 1 based on distance
+      const maxDistance = 100; // Same as pannerNode.maxDistance
+
+      // Linear attenuation
+      let volume;
+      switch (sound3DModel.value.toLowerCase()) {
+        case 'inverse':
+          // Inverse distance model: 1/(1 + rolloffFactor * (distance - refDistance) / refDistance)
+          volume = 1 / (1 + 1 * (Math.max(distance, 1) - 1) / 1);
+          break;
+        case 'exponential':
+          // Exponential distance model: (distance / refDistance) ^ -rolloffFactor
+          volume = Math.pow(Math.max(distance, 1) / 1, -1);
+          break;
+        case 'linear':
+        default:
+          // Linear distance model: 1 - rolloffFactor * (distance - refDistance) / (maxDistance - refDistance)
+          volume = Math.max(0, 1 - 1 * (distance - 1) / (maxDistance - 1));
+          break;
+      }
+
+      // Clamp volume between 0 and 1, and apply global volume
+      volume = Math.max(0, Math.min(1, volume)) * Number(globalVolume.value);
+
+      // Apply the calculated volume with a smooth transition
+      userGain.gain.setTargetAtTime(volume, audioContext.value.currentTime, 0.1);
+
+      // Update the listener position too
+      const listener = audioContext.value.listener;
+      listener.setPosition(player.position.x, player.position.y, 0);
+
+      // In 2D mode we can still use the built-in distance attenuation
+      // but with a simpler model. This lets Web Audio handle volume
+      pannerNode.distanceModel = "linear";
+      pannerNode.refDistance = 1;
+      pannerNode.maxDistance = maxDistance;
+      pannerNode.rolloffFactor = 1;
     }
   }
-
   return {
     audioInputs,
     audioOutputs,

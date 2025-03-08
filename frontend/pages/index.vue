@@ -1,17 +1,6 @@
 <script setup lang="ts">
-const audioStore = useAudioStore();
-const { audioInputs,
-    audioOutputs,
-    echoCancellation,
-    microphone,
-    mutedUsers,
-    noiseSuppression,
-    sound3D,
-    sound3DModel,
-    speaker } = storeToRefs(audioStore);
-
-const webrtcStore = useWebRTCStore()
-
+useAudioStore();
+useWebRTCStore()
 </script>
 
 <template>
@@ -21,7 +10,7 @@ const webrtcStore = useWebRTCStore()
         </div>
 
         <!-- Middle: Microphone selection -->
-        <div class="flex flex-col text-sm">
+        <div class="flex text-sm">
             <MicrophoneSelector />
             <VoiceRecorder />
             <GlobalVolumeControl />
@@ -32,7 +21,6 @@ const webrtcStore = useWebRTCStore()
     </header>
     <div class="flex flex-col gap-4 p-1 md:p-2 lg:p-4">
         <ButtonDebugConnect />
-
         <MinimapCard />
     </div>
 </template>
